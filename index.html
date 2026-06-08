@@ -177,6 +177,41 @@ section{padding:48px 0;border-bottom:1px solid var(--line)}
 footer{padding:34px 0 70px;color:var(--mut);font-size:12px;max-width:74ch}
 .reveal{opacity:0;transform:translateY(14px);animation:rise .6s cubic-bezier(.2,.7,.2,1) forwards}
 @keyframes rise{to{opacity:1;transform:none}}
+/* ---------- responsive: tablet & phone ---------- */
+@media(max-width:900px){
+ .wrap{padding:0 18px}
+ .hero{padding:48px 0 26px}
+ section{padding:40px 0}
+}
+@media(max-width:760px){
+ .wrap{padding:0 15px}
+ .bar{padding:11px 15px}
+ .bar .logo{font-size:15px;white-space:nowrap}
+ .nav{min-width:0;flex:1;justify-content:flex-end;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+ .nav::-webkit-scrollbar{display:none}
+ .nav a{padding:6px 8px;font-size:10px;letter-spacing:.08em}
+ .h2{font-size:22px;flex-wrap:wrap}
+ .note{font-size:12px}
+ .row{display:flex;align-items:center;gap:10px;padding:12px 13px}
+ .rk{flex:0 0 auto;width:20px}
+ .tm{flex:1 1 auto;min-width:0}
+ .bar2{display:none}
+ .blend{flex:0 0 auto;justify-content:flex-end;color:var(--fg);overflow:visible}
+ .chev{flex:0 0 auto;font-size:13px}
+ .tools{align-items:stretch}
+ .search{width:100%}
+ .bracket{min-height:600px}
+}
+@media(max-width:480px){
+ .bar .logo{font-size:13px}
+ .nav a{padding:5px 7px;font-size:9.5px;letter-spacing:.05em}
+ .hero h1{font-size:clamp(40px,15vw,72px)}
+ .hero .pct{font-size:24px}
+ .hero .sub{gap:6px 14px}
+ section{padding:32px 0}
+ .groups{grid-template-columns:1fr}
+ .gcard{padding:11px 13px}
+}
 </style></head>
 <body>
 <div class="bar">
