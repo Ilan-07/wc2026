@@ -1,7 +1,7 @@
 # World Cup 2026 — Forecast & Intelligence
 
-[![CI](https://github.com/Ilan-07/worldcup2026/actions/workflows/ci.yml/badge.svg)](https://github.com/Ilan-07/worldcup2026/actions)
-&nbsp;**▶ Live dashboard: [ilan-07.github.io/worldcup2026](https://ilan-07.github.io/worldcup2026/)**
+[![CI](https://github.com/Ilan-07/wc2026/actions/workflows/ci.yml/badge.svg)](https://github.com/Ilan-07/wc2026/actions)
+&nbsp;**▶ Live dashboard: [ilan-07.github.io/wc2026](https://ilan-07.github.io/wc2026/)**
 
 A transparent, self-grading, market-anchored forecasting system for the 2026 FIFA World Cup. It runs a full
 **hierarchical-Bayesian / Dixon-Coles match model**, simulates the **real tournament draw** by Monte-Carlo,

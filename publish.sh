@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Publish the rendered dashboard to the gh-pages branch of THIS repo, served by GitHub Pages at
-# https://ilan-07.github.io/worldcup2026/. The forecast-update churn lives ONLY on gh-pages, so the
+# https://ilan-07.github.io/wc2026/. The forecast-update churn lives ONLY on gh-pages, so the
 # code history on main stays clean. Publishes index.html + track-record.json (+ a small README).
 # Idempotent: a no-op when the dashboard hasn't changed. Called by run_daily.sh on a real re-fit.
 set -uo pipefail
@@ -12,7 +12,7 @@ PUB=".publish/pages"   # a clone of this repo checked out for gh-pages publishin
 [ -f "$SRC" ] || { echo "publish: no dashboard at $SRC"; exit 1; }
 if [ ! -d "$PUB/.git" ]; then
   echo "publish: $PUB missing. Recreate with:"
-  echo "  git clone --branch gh-pages https://github.com/Ilan-07/worldcup2026.git $PUB"
+  echo "  git clone --branch gh-pages https://github.com/Ilan-07/wc2026.git $PUB"
   exit 1
 fi
 
@@ -22,8 +22,8 @@ cp "$SRC" "$PUB/index.html"
 if [ ! -f "$PUB/README.md" ]; then
   cat > "$PUB/README.md" <<'MD'
 # World Cup 2026 — Live Forecast
-Live dashboard → https://ilan-07.github.io/worldcup2026/
-Auto-published from the gh-pages branch of https://github.com/Ilan-07/worldcup2026. Not betting advice.
+Live dashboard → https://ilan-07.github.io/wc2026/
+Auto-published from the gh-pages branch of https://github.com/Ilan-07/wc2026. Not betting advice.
 MD
 fi
 
