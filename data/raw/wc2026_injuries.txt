@@ -1,0 +1,22 @@
+# WC2026 availability / injury list — manual feed for the injury engine (gap #11).
+#
+# WHY MANUAL: there is no free live injury API for the current international window (API-Football's
+# free tier is season-locked to 2022-2024). Reading team-news pages and listing players here is the
+# fastest, most accurate free path. The forecast picks this up on the next `cli.py predict` run.
+#
+# FORMAT (one team per line; '#' starts a comment; blank lines ignored):
+#     Team Name: Player One, Player Two
+#
+# Use the team names exactly as they appear in the squads (e.g. "United States", not "USA"; "IR Iran").
+# A listed player is treated as unavailable; the team's strength drops by that player's market-value
+# importance share (so losing a €200m talisman hurts far more than a squad filler). This is a
+# principled WHAT-IF / prior adjustment, NOT a gate-validated accuracy feature — magnitude is a
+# modelling choice, so keep the list to genuinely ruled-out players.
+#
+# EXAMPLES (commented out — uncomment / edit with real, current team news):
+# Spain: Gavi
+# France: Ousmane Dembélé
+# Brazil: Neymar
+#
+# (No injuries currently listed → the engine applies no penalty and market value affects zero
+#  probabilities. Add lines above as pre-tournament team news confirms absences.)

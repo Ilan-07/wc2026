@@ -1,0 +1,11 @@
+# WC2026 availability — the free, immediate injury feed.
+# Copy this to  data/raw/wc2026_injuries.txt  and list players who are OUT (injured/suspended).
+# One team per line:   Team: Player One, Player Two
+# Read off any team-news page in a couple of minutes; re-edit before each predict run.
+# (The API-Football free tier is season-locked to 2022-2024, so it can't serve live data —
+#  this manual file is the accurate, zero-cost path. Player names must match the squad spelling.)
+#
+# Examples (delete / replace with real current absences):
+# France: Kylian Mbappé
+# England: John Stones, Reece James
+# Brazil: Vinícius Júnior

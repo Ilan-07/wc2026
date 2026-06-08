@@ -1,0 +1,26 @@
+# WC2026 key / star players — editable DISPLAY list (caps measure experience, not quality, so the
+# default would surface veterans, not young stars like Yamal/Pedri). Format:
+#   Team: Player One, Player Two, Player Three
+# Names must match the squad spelling; any that don't are ignored and the caps fallback fills in.
+# This is cosmetic only — it does NOT affect the forecast.
+Spain: Lamine Yamal, Pedri, Rodri
+Brazil: Vinícius Júnior, Raphinha, Rodrygo
+Argentina: Lionel Messi, Lautaro Martínez, Alexis Mac Allister
+France: Kylian Mbappé, Ousmane Dembélé, Aurélien Tchouaméni
+England: Jude Bellingham, Bukayo Saka, Harry Kane
+Portugal: Bruno Fernandes, Rafael Leão, Vitinha
+Germany: Florian Wirtz, Jamal Musiala, Kai Havertz
+Netherlands: Virgil van Dijk, Cody Gakpo, Frenkie de Jong
+Belgium: Kevin De Bruyne, Jérémy Doku, Romelu Lukaku
+Croatia: Luka Modrić, Joško Gvardiol
+Uruguay: Federico Valverde, Darwin Núñez
+Colombia: Luis Díaz, James Rodríguez
+Morocco: Achraf Hakimi, Brahim Díaz
+Norway: Erling Haaland, Martin Ødegaard
+Japan: Takefusa Kubo, Kaoru Mitoma
+United States: Christian Pulisic, Weston McKennie
+Mexico: Santiago Giménez, Edson Álvarez
+Senegal: Nicolas Jackson, Pape Matar Sarr
+Ecuador: Moisés Caicedo
+Switzerland: Granit Xhaka, Manuel Akanji
+Austria: David Alaba, Marcel Sabitzer

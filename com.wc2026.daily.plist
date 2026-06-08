@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- WC2026 live forecast tick. Install with:
+       cp com.wc2026.daily.plist ~/Library/LaunchAgents/
+       launchctl load ~/Library/LaunchAgents/com.wc2026.daily.plist
+     Runs run_daily.sh every 30 minutes; `predict --if-changed` makes most ticks a cheap no-op and
+     only re-fits when a tracked input changed. Label kept as com.wc2026.daily for continuity.
+     Unload: launchctl unload ~/Library/LaunchAgents/com.wc2026.daily.plist -->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.wc2026.daily</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/ilan/Nunnari Projects/Project 3 - personal/worldcup2026/run_daily.sh</string>
+  </array>
+  <key>StartInterval</key>
+  <integer>1800</integer>
+  <key>RunAtLoad</key>
+  <false/>
+  <key>StandardOutPath</key>
+  <string>/Users/ilan/Nunnari Projects/Project 3 - personal/worldcup2026/logs/launchd.out</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/ilan/Nunnari Projects/Project 3 - personal/worldcup2026/logs/launchd.err</string>
+</dict>
+</plist>

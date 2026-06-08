@@ -1,0 +1,66 @@
+"""Live-dashboard tests: change-gated recompute (`predict --if-changed`) + auto-reload tag.
+
+These exercise the cheap gate (fingerprint + odds interval + early-skip) in isolation — no model
+fitting and no network — so they stay fast.
+"""
+
+from __future__ import annotations
+
+import datetime as dt
+from pathlib import Path
+
+import pytest
+
+import predict
+from wc2026.reports.app import build_app
+
+
+def _seed_inputs(root: Path) -> None:
+    raw = root / "data" / "raw"
+    raw.mkdir(parents=True, exist_ok=True)
+    (raw / "results.csv").write_text("date,home_team,away_team,home_score,away_score,tournament\n")
+    (raw / "wc2026_outright_odds.csv").write_text("# odds\nSpain,5.0\n")
+
+
+def test_fingerprint_stable_and_sensitive(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    _seed_inputs(tmp_path)
+    fp1 = predict._inputs_fingerprint()
+    assert fp1 == predict._inputs_fingerprint()                       # stable across calls
+    (tmp_path / "data" / "raw" / "results.csv").write_text(
+        "date,home_team,away_team,home_score,away_score,tournament\n"
+        "2026-06-07,Spain,Brazil,2,1,Friendly\n")
+    assert predict._inputs_fingerprint() != fp1                       # new content -> new fingerprint
+
+
+def test_odds_due_respects_interval(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    assert predict._odds_due(6.0) is True                             # never fetched -> due
+    predict._save_state(last_odds_fetch=dt.datetime.now().isoformat(timespec="seconds"))
+    assert predict._odds_due(6.0) is False                            # just fetched -> not due
+    stale = (dt.datetime.now() - dt.timedelta(hours=7)).isoformat(timespec="seconds")
+    predict._save_state(last_odds_fetch=stale)
+    assert predict._odds_due(6.0) is True                             # 7h > 6h interval -> due
+
+
+def test_if_changed_skips_when_unchanged(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    _seed_inputs(tmp_path)
+    # Stub the network side-effects so only the gate logic runs.
+    monkeypatch.setattr(predict, "refresh_results", lambda: None)
+    monkeypatch.setattr(predict, "_odds_due", lambda *_a, **_k: False)
+    # Pre-seed: current fingerprint + an existing dashboard => the skip branch must trigger.
+    predict.DASHBOARD.parent.mkdir(parents=True, exist_ok=True)
+    predict.DASHBOARD.write_text("<html>old</html>")
+    predict._save_state(fingerprint=predict._inputs_fingerprint())
+    # Reaching the model body would hit this loader — make that an explicit failure.
+    monkeypatch.setattr(predict.loaders, "load_wc2026_groups",
+                        lambda *a, **k: pytest.fail("re-fit ran despite unchanged inputs"))
+    predict.main(if_changed=True)                                     # returns early, no exception
+    assert predict.DASHBOARD.read_text() == "<html>old</html>"        # dashboard left untouched
+
+
+def test_build_app_injects_reload_tag():
+    html = build_app({}, generated="2026-06-07 18:00", reload_secs=120)
+    assert '<meta http-equiv="refresh" content="120">' in html
+    assert "__RELOAD__" not in html                                  # token fully substituted

@@ -1,0 +1,17 @@
+# AUTO-SUGGESTED availability — VERIFY before copying confirmed lines into wc2026_injuries.txt.
+# Sources: Google News RSS injury headlines + Wikipedia replacement notes (both noisy).
+# Format matches the live file: 'Team: Player1, Player2'.
+
+Germany: Lennart Karl
+#   Lennart Karl <- Germany's Lennart Karl out of World Cup after training injury - ESPN
+#   Lennart Karl <- World Cup 2026: Germany forward Lennart Karl ruled out of World Cup - BBC
+
+# Wikipedia replacement notes (team unmapped — verify):
+#   Cho Yu-min
+#   DAZN
+#   Billy Gilmour
+#   Scottish Football Association
+#   Clément Akpa
+#   Emil Holm (footballer)
+#   Rocky Bushiri
+#   Ibrokhimkhalil Yuldoshev

@@ -1,0 +1,32 @@
+# secrets — never commit API keys
+data/raw/.odds_api_key
+data/raw/.api_football_key
+data/raw/.x_bearer_token
+data/raw/.bsky_handle
+data/raw/.bsky_app_password
+.env
+
+# raw data dumps (re-fetchable; large) — recursive so nested feeds (transfermarkt/, odds/,
+# apifootball_xg/) are covered too. Hand-maintained *.txt inputs (stars/injuries/bracket) are kept.
+data/raw/**/*.csv
+data/raw/**/*.json
+data/raw/**/*.wiki
+data/processed/
+
+# python
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.deepeval/
+.coverage
+htmlcov/
+*.egg-info/
+.venv/
+
+# generated logs + macOS cruft
+logs/
+.DS_Store
+
+# local publish clone (mirror of the public wc2026-live repo)
+.publish/

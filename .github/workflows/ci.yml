@@ -1,0 +1,19 @@
+name: CI
+on:
+  push:
+  pull_request:
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install ruff
+        run: python -m pip install --upgrade pip ruff
+      - name: Lint
+        run: ruff check src tests
+# Note: the full pytest suite (115 tests) needs the local datasets (gitignored) and PyMC, so it
+# runs locally (`PYTHONPATH=src pytest`) rather than in CI. A data-fixture-backed test job is a
+# planned follow-up.

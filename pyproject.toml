@@ -1,0 +1,40 @@
+[project]
+name = "wc2026"
+version = "0.1.0"
+description = "AI Football Intelligence & Collective Tournament Reasoning System for FIFA World Cup 2026"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "pandas>=2.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.4"]
+# Later phases (not needed for the statistical spine):
+intelligence = ["scikit-learn>=1.3", "networkx>=3.0"]
+bayesian = ["pymc>=5.0"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py310"
+
+[tool.ruff.lint]
+# E/F = pyflakes+pycodestyle, I = isort, UP = pyupgrade, B = bugbear
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501", "E731", "B008", "E702", "E741", "B905"]  # line-length, lambdas, compact test setup, 'l' var, zip-strict
+
+[tool.pyright]
+extraPaths = ["src"]
+reportMissingImports = "none"
