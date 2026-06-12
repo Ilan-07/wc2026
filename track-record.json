@@ -1,7 +1,12 @@
 {
   "kickoff": "2026-06-11",
-  "updated": "2026-06-12T10:53:11",
-  "n_matches": 0,
-  "status": "pending",
-  "note": "Live scoring begins at kickoff (2026-06-11)."
+  "updated": "2026-06-12T15:24:22",
+  "n_matches": 2,
+  "status": "live",
+  "rps": 0.0973,
+  "uniform_rps": 0.2778,
+  "skill": 0.1805,
+  "log_loss": 0.5286,
+  "brier": 0.2575,
+  "calls_correct": 2
 }
