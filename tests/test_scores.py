@@ -193,3 +193,47 @@ def test_console_knockout_block_shows_advance(model_and_teams):
                                knockouts=scores.build_knockout_scores(model, bracket, hosts=set(), psi={}))
     text = scores.format_scores_console(sec)
     assert "Round of 32" in text and "advance" in text
+
+
+# ----------------------------------------------- gap #4: the displayed distribution is faithful
+# We cannot validate *real-world* exact-score calibration without held-out tournament data, but we
+# can hold the display to the same bar as the forecast: the probabilities shown for a fixture must
+# match the frequencies obtained by actually sampling that fixture from the model the simulator uses.
+def _sample_freqs(model, a, b, *, neutral, extra_delta, n, seed):
+    rng = np.random.default_rng(seed)
+    wins = draws = losses = 0
+    mode = {}
+    for _ in range(n):
+        gh, ga = model.sample_score(a, b, rng, neutral=neutral, extra_delta=extra_delta)
+        wins += gh > ga
+        draws += gh == ga
+        losses += gh < ga
+        mode[(gh, ga)] = mode.get((gh, ga), 0) + 1
+    top = max(mode.items(), key=lambda kv: kv[1])
+    return wins / n, draws / n, losses / n, top[0], top[1] / n
+
+
+def test_displayed_probs_match_sampled_frequencies(model_and_teams):
+    model, teams = model_and_teams
+    a, b = teams[0], teams[1]
+    fs = scores.score_fixture(model, a, b, hosts=set())
+    fh, fd, fa, mode, mode_freq = _sample_freqs(model, a, b, neutral=True, extra_delta=0.0,
+                                                n=40000, seed=0)
+    assert fh == pytest.approx(fs.p_home, abs=0.01)   # W/D/L match sampling within Monte-Carlo error
+    assert fd == pytest.approx(fs.p_draw, abs=0.01)
+    assert fa == pytest.approx(fs.p_away, abs=0.01)
+    assert mode == (fs.modal_home, fs.modal_away)      # displayed modal score is the empirical mode
+    assert mode_freq == pytest.approx(fs.modal_prob, abs=0.01)
+
+
+def test_displayed_probs_stay_faithful_under_altitude_shift(model_and_teams):
+    """The altitude fix must be faithful end-to-end: a score shown WITH the shift equals what the
+    simulator samples WITH the same extra_delta."""
+    model, teams = model_and_teams
+    a, b = teams[0], teams[1]
+    delta = 0.3
+    fs = scores.score_fixture(model, a, b, hosts=set(), extra_home=delta)
+    fh, fd, fa, _, _ = _sample_freqs(model, a, b, neutral=True, extra_delta=delta, n=40000, seed=1)
+    assert fh == pytest.approx(fs.p_home, abs=0.01)
+    assert fd == pytest.approx(fs.p_draw, abs=0.01)
+    assert fa == pytest.approx(fs.p_away, abs=0.01)
