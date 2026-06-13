@@ -424,9 +424,11 @@ function scoreCard(title,badge,fixtures){
  const card=el('<div class="scard"><div class="gh"><span class="gb">'+badge+'</span>'+title+'</div></div>');
  fixtures.forEach(f=>{
   const score=f.mh+' – '+f.ma;
-  const meta=f.played
-   ? 'final result · locked'
-   : 'xG '+f.h.toFixed(1)+'–'+f.a.toFixed(1)+' · W/D/L '+pc0(f.pH)+'/'+pc0(f.pD)+'/'+pc0(f.pA)+' · this score '+pc0(f.mp);
+  let meta;
+  if(f.played){ meta=(f.adH!=null?'advanced':'final result')+' · locked'; }
+  else if(f.adH!=null){ // knockout: a level game is settled by ET + penalties, so show advance%
+   meta='xG '+f.h.toFixed(1)+'–'+f.a.toFixed(1)+' · advance '+pc0(f.adH)+'/'+pc0(f.adA)+' · this score '+pc0(f.mp)+' (reg.)'; }
+  else{ meta='xG '+f.h.toFixed(1)+'–'+f.a.toFixed(1)+' · W/D/L '+pc0(f.pH)+'/'+pc0(f.pD)+'/'+pc0(f.pA)+' · this score '+pc0(f.mp); }
   card.appendChild(el('<div class="sx'+(f.played?' played':'')+'">'+
    '<div class="sl"><span class="tm2 home">'+f.home+'</span><b class="sc">'+score+'</b>'+
    '<span class="tm2 away">'+f.away+'</span></div><div class="meta2">'+meta+'</div></div>'));

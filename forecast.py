@@ -107,6 +107,8 @@ def main(n_sims: int = 50_000, n_boot: int = 20) -> None:
 
     # Per-match predicted scorelines (display only; the simulation above is untouched).
     from wc2026.reports.scores import build_score_sections, format_scores_console
+    # Fundamentals-only: this script's simulator treats venues as neutral (no altitude/fatigue), so
+    # the scores stay neutral too — only the shootout psi feeds knockout advancement.
     sections = build_score_sections(
         MatchModel(dc_full),
         loaders.load_wc2026_group_fixtures(),
@@ -114,6 +116,7 @@ def main(n_sims: int = 50_000, n_boot: int = 20) -> None:
         groups,
         bracket=loaders.load_bracket_file(),
         played_ko=loaders.load_wc2026_played_knockouts(),
+        psi=psi,
     )
     print("\n" + format_scores_console(sections))
 
