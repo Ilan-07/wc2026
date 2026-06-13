@@ -168,8 +168,12 @@ def _save_bayes_cache(matches, n_boot, base, draws):
 
 
 def build_payload(teams, groups, matches, champ, market_champ, blended, sd, result,
-                  avail, n_sims, bayesian, played, news, pick, p_pick) -> dict:
-    """Assemble the full data object the interactive dashboard renders from."""
+                  avail, n_sims, bayesian, played, news, pick, p_pick, score_model=None) -> dict:
+    """Assemble the full data object the interactive dashboard renders from.
+
+    ``score_model`` is the central match model used to attach a predicted scoreline to every
+    fixture (display only — the forecast math above is unchanged). Omit it to skip the scores
+    section (keeps older callers/tests working)."""
     import hashlib
 
     import pandas as pd
@@ -287,6 +291,20 @@ def build_payload(teams, groups, matches, champ, market_champ, blended, sd, resu
                 seen.add(it.title)
                 latest.append({"team": tp.team, "title": it.title, "source": it.source,
                                "date": it.date, "link": it.link, "score": it.score})
+    # predicted/locked match scorelines (display only; the simulator above is untouched). Live-aware:
+    # group fixtures now, knockout R32 once the bracket is known, real scores locked where played.
+    scores_payload = {"groups": [], "knockouts": []}
+    if score_model is not None:
+        from wc2026.reports.scores import build_score_sections
+        scores_payload = build_score_sections(
+            score_model,
+            loaders.load_wc2026_group_fixtures(),
+            played,
+            groups,
+            bracket=loaders.load_bracket_file(),
+            played_ko=loaders.load_wc2026_played_knockouts(),
+        ).payload()
+
     vintage = max(m["date"] for m in matches).isoformat()
     mw = int(MODEL_WEIGHT * 100)
     badges = [f"{n_sims:,} simulations", f"blend {mw}/{100 - mw} model/market",
@@ -297,7 +315,7 @@ def build_payload(teams, groups, matches, champ, market_champ, blended, sd, resu
             "pickSd": sd[pick], "status": f"conditioned on {len(played)}/72 group matches · through {vintage}",
             "badges": badges, "teams": team_rows, "bracket": rounds, "groups": groups_payload,
             "crowdOver": [mk(t) for t in dv[:5]], "crowdUnder": [mk(t) for t in reversed(dv[-5:])],
-            "news": news_payload, "latest": latest[:30]}
+            "news": news_payload, "latest": latest[:30], "scores": scores_payload}
 
 
 def main(n_sims: int = 30_000, n_boot: int = 15, refresh: bool = False,
@@ -419,6 +437,7 @@ def main(n_sims: int = 30_000, n_boot: int = 15, refresh: bool = False,
         penalties_from_scenario,
     )
     avail = load_manual_availability("data/raw/wc2026_injuries.txt")
+    inj = None
     if avail:
         _sq = squads_mod.load_squads()
         try:  # value-weight the importance shares (a star out hurts more than a squad filler)
@@ -431,6 +450,12 @@ def main(n_sims: int = 30_000, n_boot: int = 15, refresh: bool = False,
         for m in ensemble:
             m.adjustment = inj
         print(f"Injuries: {sum(len(v) for v in avail.values())} players out across {len(avail)} teams.")
+
+    # Central match model for the per-match scoreline display (same params/blend/injuries as the
+    # ensemble's central member). Display only — it never feeds the champion math above.
+    score_model = _member(base_params, xg_blend)
+    if inj is not None:
+        score_model.adjustment = inj
 
     kw = dict(psi=psi, shootout_model=shootout_model, known_group_results=played,
               group_venue_altitudes=venue_alt, known_bracket=known_bracket,
@@ -475,7 +500,15 @@ def main(n_sims: int = 30_000, n_boot: int = 15, refresh: bool = False,
     data = build_payload(
         teams, groups, matches, champ, market_champ, blended, sd, result,
         bool(avail) and avail or {}, n_sims, bayesian, played, news, pick, p_pick,
+        score_model=score_model,
     )
+
+    # Console preview of the per-match scorelines (the dashboard shows the full section).
+    from wc2026.reports.scores import build_score_sections, format_scores_console
+    _sections = build_score_sections(
+        score_model, loaders.load_wc2026_group_fixtures(), played, groups,
+        bracket=known_bracket, played_ko=loaders.load_wc2026_played_knockouts())
+    print("\n" + format_scores_console(_sections))
     data["social"] = [  # display-only feed; not consumed by any forecast computation
         {"team": tp.team, "pulse": tp.pulse, "mood": tp.mood,
          "items": [{"title": i.title, "source": i.source, "date": i.date, "link": i.link}

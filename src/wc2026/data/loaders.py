@@ -222,6 +222,26 @@ def load_wc2026_knockout_results(path: str | Path | None = None) -> dict[frozens
     return out
 
 
+def load_wc2026_played_knockouts(path: str | Path | None = None) -> dict[frozenset, tuple]:
+    """Played WC2026 *knockout* scorelines as {frozenset({a, b}): (home, home_score, away_score)}.
+
+    Mirrors :func:`load_wc2026_played_groups` but for cross-group (knockout) fixtures, so the
+    display layer can lock a real scoreline once a knockout tie has been played. Empty until the
+    knockout stage starts; populates as ``results.csv`` is re-fetched.
+    """
+    df = _read_raw(path)
+    wc = df[(df["tournament"] == "FIFA World Cup") & (df["date"].dt.year == 2026)]
+    wc = wc.dropna(subset=["home_score", "away_score"])
+    groups = load_wc2026_groups(path)
+    group_of = {t: g for g, ts in groups.items() for t in ts}
+    out: dict[frozenset, tuple] = {}
+    for r in wc.itertuples(index=False):
+        h, a = r.home_team, r.away_team
+        if group_of.get(h) is not None and group_of.get(a) is not None and group_of[h] != group_of[a]:
+            out[frozenset((h, a))] = (h, int(r.home_score), int(r.away_score))
+    return out
+
+
 def load_bracket_file(path: str | Path | None = None) -> list[str] | None:
     """Load a supplied Round-of-32 bracket (32 team names, one per line) once it is known.
 
