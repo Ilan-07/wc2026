@@ -132,6 +132,19 @@ section{padding:48px 0;border-bottom:1px solid var(--line)}
 .gt .q{font-family:var(--mono);font-size:10.5px;color:var(--teal)}
 .gt.out .q{color:var(--mut)}
 .gt .qbar{height:5px;border-radius:3px;background:var(--teal);opacity:.5}
+/* scores — predicted / locked match scorelines */
+.scores{display:grid;grid-template-columns:repeat(auto-fill,minmax(252px,1fr));gap:13px}
+.scard{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 15px}
+.scard .gh{font-family:var(--display);font-weight:600;font-size:14px;margin-bottom:9px;display:flex;align-items:center;gap:9px}
+.scard .gh .gb{width:22px;height:22px;font-size:11.5px;background:var(--gold);color:#1a1205}
+.sx{padding:8px 0;border-top:1px solid var(--line)}
+.sx:first-of-type{border-top:none}
+.sx .sl{display:grid;grid-template-columns:1fr auto 1fr;align-items:baseline;gap:8px}
+.sx .tm2{font-size:13px;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.sx .away{text-align:right}
+.sx .sc{font-family:var(--mono);font-weight:700;font-size:14px;color:var(--gold);flex:0 0 auto;font-variant-numeric:tabular-nums}
+.sx.played .sc{color:var(--teal)}
+.sx .meta2{font-family:var(--mono);font-size:10px;color:var(--mut);margin-top:4px;text-align:center}
 /* bracket — matches flex-grow so each round centres between its feeder pair */
 .bracket{display:flex;gap:10px;overflow-x:auto;padding:6px 2px 24px;align-items:stretch;min-height:760px}
 .bcol{display:flex;flex-direction:column;min-width:176px;flex:0 0 auto}
@@ -224,13 +237,14 @@ footer{padding:34px 0 70px;color:var(--mut);font-size:12px;max-width:74ch}
  .hero .sub{gap:6px 14px}
  section{padding:32px 0}
  .groups{grid-template-columns:1fr}
+ .scores{grid-template-columns:1fr}
  .gcard{padding:11px 13px}
 }
 </style></head>
 <body>
 <div class="bar">
  <div class="logo">WC<b>26</b> · Forecast Terminal</div>
- <nav class="nav"><a href="#forecast">Forecast</a><a href="#groups">Groups</a><a href="#bracket">Bracket</a><a href="#divergence">Crowd</a><a href="#pulse">Pulse</a></nav>
+ <nav class="nav"><a href="#forecast">Forecast</a><a href="#groups">Groups</a><a href="#scores">Scores</a><a href="#bracket">Bracket</a><a href="#divergence">Crowd</a><a href="#pulse">Pulse</a></nav>
 </div>
 <div class="wrap">
  <header class="hero reveal">
@@ -258,8 +272,17 @@ footer{padding:34px 0 70px;color:var(--mut);font-size:12px;max-width:74ch}
   <div class="groups" id="groupsEl"></div>
  </section>
 
+ <section id="scores">
+  <div class="h2"><span class="n">03</span> Match scores</div>
+  <p class="note">The model's scoreline for every fixture. The big number is the single <b>most-likely
+   exact score</b>; the line under it gives <b>expected goals</b> and the win/draw/loss split, so the
+   modal score is read in context (its own probability is only ~10–15% — football is noisy). Played
+   matches are <b>locked to their real result</b> (teal); knockout scores appear once the bracket is set.</p>
+  <div class="scores" id="scoresEl"></div>
+ </section>
+
  <section id="bracket">
-  <div class="h2"><span class="n">03</span> Projected bracket</div>
+  <div class="h2"><span class="n">04</span> Projected bracket</div>
   <p class="note">Group standings (from the simulator, incl. altitude) fill the official Round-of-32 template;
    knockout advancement uses the <b>blended, market-anchored</b> title probability, so the stronger side
    advances rather than whoever drew the easier path. Badges show each team's group; click a node for its reasoning.</p>
@@ -267,13 +290,13 @@ footer{padding:34px 0 70px;color:var(--mut);font-size:12px;max-width:74ch}
  </section>
 
  <section id="divergence">
-  <div class="h2"><span class="n">04</span> Crowd vs Model</div>
+  <div class="h2"><span class="n">05</span> Crowd vs Model</div>
   <p class="note">Where the simulator and the betting market disagree — the most actionable signal.</p>
   <div class="grid2" id="divEl"></div>
  </section>
 
  <section id="pulse">
-  <div class="h2"><span class="n">05</span> News Pulse <span class="badge" style="align-self:center">display only — not in the forecast</span></div>
+  <div class="h2"><span class="n">06</span> News Pulse <span class="badge" style="align-self:center">display only — not in the forecast</span></div>
   <p class="note">Live headlines pulled from Google News at generation time (re-run <span class="mono">predict</span> to
    refresh). The latest stream is below; per-team mood cards follow. Deliberately excluded from the math.</p>
   <h3 style="font-family:var(--display);font-weight:600;font-size:16px;margin:0 0 10px">Latest across all teams</h3>
@@ -283,7 +306,7 @@ footer{padding:34px 0 70px;color:var(--mut);font-size:12px;max-width:74ch}
  </section>
 
  <section id="track">
-  <div class="h2"><span class="n">06</span> Track record</div>
+  <div class="h2"><span class="n">07</span> Track record</div>
   <p class="note">How this forecast actually performs — out-of-sample, scored with proper rules. Lower RPS is
    better; uniform (1/3 each) is the no-skill baseline.</p>
   <div class="card">
@@ -393,6 +416,28 @@ D.groups.forEach(g=>{
  });
  gel.appendChild(card);
 });
+
+// scores — predicted (or locked) scoreline per fixture
+const pc0=(x)=>Math.round(x*100)+'%';
+const sel=document.getElementById('scoresEl');
+function scoreCard(title,badge,fixtures){
+ const card=el('<div class="scard"><div class="gh"><span class="gb">'+badge+'</span>'+title+'</div></div>');
+ fixtures.forEach(f=>{
+  const score=f.mh+' – '+f.ma;
+  const meta=f.played
+   ? 'final result · locked'
+   : 'xG '+f.h.toFixed(1)+'–'+f.a.toFixed(1)+' · W/D/L '+pc0(f.pH)+'/'+pc0(f.pD)+'/'+pc0(f.pA)+' · this score '+pc0(f.mp);
+  card.appendChild(el('<div class="sx'+(f.played?' played':'')+'">'+
+   '<div class="sl"><span class="tm2 home">'+f.home+'</span><b class="sc">'+score+'</b>'+
+   '<span class="tm2 away">'+f.away+'</span></div><div class="meta2">'+meta+'</div></div>'));
+ });
+ return card;
+}
+const S=D.scores||{groups:[],knockouts:[]};
+if((S.groups&&S.groups.length)||(S.knockouts&&S.knockouts.length)){
+ (S.groups||[]).forEach(g=>sel.appendChild(scoreCard('Group '+g.group,g.group,g.fixtures)));
+ (S.knockouts||[]).forEach(k=>sel.appendChild(scoreCard(k.round,'KO',k.fixtures)));
+}else{sel.innerHTML='<div class="empty">Match scores appear once the model has run.</div>';}
 
 // bracket — pair nodes into matches so rounds align between their feeders
 const labels=['Round of 32','Round of 16','Quarterfinals','Semifinals','Final'];

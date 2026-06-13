@@ -105,6 +105,18 @@ def main(n_sims: int = 50_000, n_boot: int = 20) -> None:
     for g, teams in groups.items():
         print(f"  {g}: {', '.join(teams)}")
 
+    # Per-match predicted scorelines (display only; the simulation above is untouched).
+    from wc2026.reports.scores import build_score_sections, format_scores_console
+    sections = build_score_sections(
+        MatchModel(dc_full),
+        loaders.load_wc2026_group_fixtures(),
+        loaders.load_wc2026_played_groups(),
+        groups,
+        bracket=loaders.load_bracket_file(),
+        played_ko=loaders.load_wc2026_played_knockouts(),
+    )
+    print("\n" + format_scores_console(sections))
+
 
 if __name__ == "__main__":
     main()
