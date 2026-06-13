@@ -127,3 +127,69 @@ def test_console_formatter_runs_and_mentions_groups(model_and_teams):
     assert "Predicted match scores" in text
     assert "Group A" in text
     assert teams[0] in text
+
+
+# ----------------------------------------------- gap #1: altitude/fatigue consistency
+def test_extra_home_shifts_rates_toward_home(model_and_teams):
+    """A positive home-oriented log-rate shift must raise the listed home team's expected goals and
+    lower the away team's — the same direction the simulator applies altitude/fatigue."""
+    model, teams = model_and_teams
+    base = scores.score_fixture(model, teams[0], teams[1], hosts=set())
+    boosted = scores.score_fixture(model, teams[0], teams[1], hosts=set(), extra_home=0.3)
+    assert boosted.home_score > base.home_score
+    assert boosted.away_score < base.away_score
+
+
+def test_extra_home_favours_listed_home_even_when_away_is_host(model_and_teams):
+    """When the away side is the host (scored as home internally), a positive extra_home must still
+    favour the LISTED home team — i.e. the sign is handled through the host swap."""
+    model, teams = model_and_teams
+    a, b = teams[0], teams[1]
+    base = scores.score_fixture(model, a, b, hosts={b})
+    boosted = scores.score_fixture(model, a, b, hosts={b}, extra_home=0.3)
+    assert boosted.home_score > base.home_score   # listed home (a) still gets the boost
+
+
+def test_group_altitude_delta_uses_home_altitude_differential(monkeypatch):
+    from wc2026.data import venues
+    monkeypatch.setattr(venues, "home_altitude", lambda t: 2000 if t == "HI" else 0)
+    key = frozenset(("HI", "LO"))
+    d = scores._group_extra("HI", "LO", {key: 2200}, None)
+    assert d > 0    # acclimatised side at home is favoured at a high-altitude venue
+    d2 = scores._group_extra("LO", "HI", {key: 2200}, None)
+    assert d2 < 0   # listed home now the lowland side -> disadvantaged
+    assert scores._group_extra("HI", "LO", None, None) == 0.0  # no covariate -> no shift
+
+
+# ----------------------------------------------- gap #3: knockout advancement (no phantom draws)
+def test_knockout_reports_advancement_not_a_standalone_draw(model_and_teams):
+    model, teams = model_and_teams
+    bracket = [teams[i % len(teams)] for i in range(32)]
+    ko = scores.build_knockout_scores(model, bracket, hosts=set(), psi={})
+    assert len(ko) == 16
+    for fs in ko:
+        assert fs.advance_home is not None and fs.advance_away is not None
+        assert fs.advance_home + fs.advance_away == pytest.approx(1.0, abs=1e-9)
+        # advancing must be at least as likely as winning in regulation (the draw mass is split out)
+        assert fs.advance_home >= fs.p_home - 1e-9
+        assert fs.advance_away >= fs.p_away - 1e-9
+    d = ko[0].to_dict()
+    assert "adH" in d and "adA" in d
+
+
+def test_played_knockout_marks_the_advancing_side(model_and_teams):
+    model, teams = model_and_teams
+    bracket = [teams[i % len(teams)] for i in range(32)]
+    pk = {frozenset((bracket[0], bracket[1])): (bracket[0], 2, 1)}  # home wins 2-1
+    fs = scores.build_knockout_scores(model, bracket, played_ko=pk, hosts=set())[0]
+    assert fs.played
+    assert (fs.advance_home, fs.advance_away) == (1.0, 0.0)
+
+
+def test_console_knockout_block_shows_advance(model_and_teams):
+    model, teams = model_and_teams
+    bracket = [teams[i % len(teams)] for i in range(32)]
+    sec = scores.ScoreSections(groups=[],
+                               knockouts=scores.build_knockout_scores(model, bracket, hosts=set(), psi={}))
+    text = scores.format_scores_console(sec)
+    assert "Round of 32" in text and "advance" in text
