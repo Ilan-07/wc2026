@@ -1,7 +1,7 @@
 # World Cup 2026 — Forecast & Intelligence
 
 [![CI](https://github.com/Ilan-07/wc2026/actions/workflows/ci.yml/badge.svg)](https://github.com/Ilan-07/wc2026/actions)
-&nbsp;**▶ Live dashboard: [ilan-07.github.io/wc2026](https://ilan-07.github.io/wc2026/)**
+&nbsp;**▶ Live dashboard: [ilan-07.github.io/wc2026](https://ilan-07.github.io/wc2026/)** — auto-updates every matchday (champion odds, projected bracket, predicted match scores, and a live public track record).
 
 A transparent, self-grading, market-anchored forecasting system for the 2026 FIFA World Cup. It runs a full
 **hierarchical-Bayesian / Dixon-Coles match model**, simulates the **real tournament draw** by Monte-Carlo,
@@ -22,6 +22,9 @@ what does and doesn't move a forecast.
   dashboard, and publishes it; the page auto-reloads.
 - 📊 **Public track record** — every WC2026 match is scored against a rating *frozen before kickoff*
   (leakage-free) and shown live on the dashboard.
+- ⚽ **Predicted match scores** — every fixture gets a scoreline: expected goals, the most-likely exact
+  score and its probability, and win/draw/loss. Played matches lock to their real result and knockout
+  scores appear once the bracket is set — so the section sharpens live alongside the forecast.
 - 🧠 **Bayesian + structural** — hierarchical Bayesian Poisson ratings (PyMC) with MCMC diagnostics, a dynamic
   state-space rating warm-start, an xG blend, host advantage, altitude, fatigue, and a learned shootout model.
 - 🔍 **Fully auditable** — a knowledge graph + an Analyst→Market→Contrarian→Judge reasoning pipeline explain
@@ -115,13 +118,13 @@ src/wc2026/                  # the library
   ratings/{elo,dixon_coles,bayesian_dc,state_space,xg_rating}   model/match_model
   simulate/{format,bracket,tournament}    fusion/{pool,divergence}    graph/kg
   collective/{market,odds_api,sentiment,social,availability}    evaluate/{metrics,score,…}
-  intelligence/{squads,injuries,conditions,covariates}    reports/{app,dashboard,explain}    data/{loaders,…}
+  intelligence/{squads,injuries,conditions,covariates}    reports/{app,dashboard,scores,explain}    data/{loaders,…}
 cli.py  predict.py  score_live.py  intelligence_report.py          # production entry points
 *_ablation.py  *_sweep.py  *_validate.py  tournament_backtest.py   # research / validation scripts
 run_daily.sh  publish.sh  com.wc2026.daily.plist  tests/  FINDINGS.md
 ```
 
-The full suite (115 tests) runs locally with `PYTHONPATH=src pytest`. CI lints on every push; a data-fixture
+The full suite (123 tests) runs locally with `PYTHONPATH=src pytest`. CI lints on every push; a data-fixture
 test job is a planned follow-up.
 
 ## Scope
