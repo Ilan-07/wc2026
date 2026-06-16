@@ -1,12 +1,12 @@
 {
   "kickoff": "2026-06-11",
-  "updated": "2026-06-16T16:12:28",
-  "n_matches": 12,
+  "updated": "2026-06-16T20:20:01",
+  "n_matches": 16,
   "status": "live",
-  "rps": 0.1867,
-  "uniform_rps": 0.2222,
-  "skill": 0.0355,
-  "log_loss": 0.9975,
-  "brier": 0.603,
+  "rps": 0.188,
+  "uniform_rps": 0.1944,
+  "skill": 0.0065,
+  "log_loss": 1.094,
+  "brier": 0.6863,
   "calls_correct": 6
 }
