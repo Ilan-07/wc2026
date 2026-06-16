@@ -21,6 +21,7 @@ import numpy as np
 
 from wc2026.data import loaders
 from wc2026.evaluate.metrics import summary as score_summary
+from wc2026.evaluate.pick import decisive_accuracy, pick
 from wc2026.model.match_model import MatchModel
 from wc2026.ratings.dixon_coles import DixonColesModel
 
@@ -74,10 +75,15 @@ def track_record(write: bool = True) -> dict:
         o = _outcome(m["home_score"], m["away_score"])
         probs.append(p)
         outs.append(o)
-        correct += int(np.argmax(p) == o)
+        correct += int(pick(p) == o)  # draw-aware pick (defaults to argmax in practice)
 
-    s = score_summary(np.array(probs), np.array(outs))
-    uni = score_summary(np.array([UNIFORM] * len(outs)), np.array(outs))
+    probs_a, outs_a = np.array(probs), np.array(outs)
+    s = score_summary(probs_a, outs_a)
+    uni = score_summary(np.array([UNIFORM] * len(outs)), outs_a)
+    # The honest hit-rate: a draw is almost never the single most-likely outcome, so the pick can
+    # only ever be "right" on matches that had a winner. Report accuracy on those decisive matches
+    # alongside the raw count so a glut of (unpickable) draws can't masquerade as a model failure.
+    dec_correct, n_decisive = decisive_accuracy(probs_a, outs_a)
     rec.update({
         "status": "live",
         "rps": round(s["rps"], 4),
@@ -86,6 +92,9 @@ def track_record(write: bool = True) -> dict:
         "log_loss": round(s["log_loss"], 4),
         "brier": round(s["brier"], 4),
         "calls_correct": correct,
+        "calls_decisive": dec_correct,
+        "n_decisive": n_decisive,
+        "n_draws": int((outs_a == 1).sum()),
     })
     if write:
         _write(rec)
@@ -104,8 +113,10 @@ def main() -> None:
     else:
         print(f"Live track record over {rec['n_matches']} WC2026 matches:")
         print(f"  RPS {rec['rps']} vs uniform {rec['uniform_rps']}  (skill {rec['skill']:+})")
-        print(f"  correct calls {rec['calls_correct']}/{rec['n_matches']}  |  "
-              f"log-loss {rec['log_loss']}  brier {rec['brier']}")
+        print(f"  decisive calls {rec['calls_decisive']}/{rec['n_decisive']}  "
+              f"({rec['n_draws']} draws excluded — unpickable)  |  "
+              f"raw calls {rec['calls_correct']}/{rec['n_matches']}")
+        print(f"  log-loss {rec['log_loss']}  brier {rec['brier']}")
 
 
 if __name__ == "__main__":

@@ -344,9 +344,11 @@ document.getElementById('gen').textContent = D.generated;
   const t = D.track || {}, e = document.getElementById('trackLive');
   if (!e) return;
   if (t.status === 'live'){
+    var calls = (t.n_decisive != null)
+      ? 'correct calls <b>'+t.calls_decisive+'/'+t.n_decisive+'</b> on decisive matches ('+t.n_draws+' draws excluded — a draw is never the single most-likely outcome)'
+      : 'correct calls '+t.calls_correct+'/'+t.n_matches;
     e.innerHTML = '<b>Live &middot; '+t.n_matches+' WC2026 matches scored</b> &mdash; RPS <b>'+t.rps+'</b> vs '
-      + t.uniform_rps + ' uniform (skill '+(t.skill>=0?'+':'')+t.skill+') &middot; correct calls '
-      + t.calls_correct + '/' + t.n_matches;
+      + t.uniform_rps + ' uniform (skill '+(t.skill>=0?'+':'')+t.skill+') &middot; ' + calls;
   } else {
     e.innerHTML = '<b>Live scoring begins at kickoff</b> &mdash; ' + (t.kickoff || '2026-06-11')
       + '. Each WC2026 match is graded against a rating frozen before the tournament.';

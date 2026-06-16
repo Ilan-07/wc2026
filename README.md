@@ -103,7 +103,7 @@ python cli.py odds      # refresh live outright odds
 ```
 
 Research / validation gates are also CLI subcommands: `backtest`, `stage-reliability`, `sbc`, `blend-weight`,
-`state-space`, `bayes-tau`, `shootout`, `xg-joint`, `probe`.
+`state-space`, `bayes-tau`, `shootout`, `xg-joint`, `draw-pick`, `probe`.
 
 ## Automation
 

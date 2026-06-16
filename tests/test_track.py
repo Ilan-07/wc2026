@@ -51,5 +51,9 @@ def test_live_scoring_path(monkeypatch, tmp_path):
     assert rec["status"] == "live"
     assert rec["n_matches"] == 2
     assert rec["calls_correct"] == 1          # got the home win, missed the draw
+    # The draw is unpickable, so the honest hit-rate is graded on the one decisive match (got it).
+    assert rec["n_draws"] == 1
+    assert rec["n_decisive"] == 1
+    assert rec["calls_decisive"] == 1
     assert 0.0 <= rec["rps"] <= 1.0
     assert rec["skill"] == round(rec["uniform_rps"] - rec["rps"], 4)

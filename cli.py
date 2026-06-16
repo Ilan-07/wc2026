@@ -65,6 +65,7 @@ def main(argv=None) -> None:
     sub.add_parser("bayes-tau", help="Bayesian tau + pooled-home ablation (#2)")
     sub.add_parser("shootout", help="penalty-shootout win-propensity ablation (#3)")
     sub.add_parser("xg-joint", help="xG measurement-error joint-fit ablation (#4)")
+    sub.add_parser("draw-pick", help="calibrate + LOTO-validate the draw-aware match pick")
     # Free gap-closers.
     sub.add_parser("injuries", help="suggest availability from Wikipedia + news (writes *.suggested.txt)")
     sub.add_parser("probe", help="conditional-calibration probe — where is the model mis-calibrated?")
@@ -143,6 +144,9 @@ def main(argv=None) -> None:
     elif args.cmd == "xg-joint":
         import xg_joint_ablation
         xg_joint_ablation.main()
+    elif args.cmd == "draw-pick":
+        import draw_pick_calibration
+        draw_pick_calibration.main()
 
 
 if __name__ == "__main__":
