@@ -1,8 +1,14 @@
 """Live tournament track record — grade the model against WC2026 results as they're played.
 
-Leakage-free by construction: the rating is **frozen on data before kickoff**, then each WC2026
-group match is scored as it happens (proper W/D/L Ranked Probability Score vs a uniform baseline).
-Populates from June 11; before then it honestly reports that scoring hasn't started.
+Leakage-free by construction: it grades the **production** match model (the same rating the
+dashboard ships — Bayesian Poisson + xG blend + goals recalibration, via ``predict.build_match_model``
+so it can't drift from the forecast), **frozen on data before kickoff**, with host advantage and
+altitude applied per fixture exactly like the live simulator. Each WC2026 match is then scored as it
+happens (proper W/D/L Ranked Probability Score vs a uniform baseline). Populates from June 11; before
+then it honestly reports that scoring hasn't started.
+
+Hit-rate is reported as **decisive-match accuracy** (draws excluded — a draw is almost never the
+single most-likely outcome, so it is structurally unpickable; see ``wc2026.evaluate.pick``).
 
     PYTHONPATH=src python cli.py track     # update + print the live record
 
@@ -22,8 +28,7 @@ import numpy as np
 from wc2026.data import loaders
 from wc2026.evaluate.metrics import summary as score_summary
 from wc2026.evaluate.pick import decisive_accuracy, pick
-from wc2026.model.match_model import MatchModel
-from wc2026.ratings.dixon_coles import DixonColesModel
+from wc2026.reports.scores import _group_extra, score_fixture
 
 TRACK_FILE = Path("data/processed/track_record.json")
 KICKOFF = dt.date(2026, 6, 11)
@@ -35,14 +40,30 @@ def _outcome(home_goals: int, away_goals: int) -> int:
     return 0 if home_goals > away_goals else (1 if home_goals == away_goals else 2)
 
 
+def _build_model(train: list[dict], xg_before: str, bayesian: bool):
+    """The production central match model, frozen on pre-kickoff history (leakage-free).
+
+    Thin seam over ``predict.build_match_model`` (imported lazily to avoid a heavy import on the
+    cheap pre-kickoff path) so tests can stub the model without fitting. ``xg_before`` keeps the
+    xG blend out-of-sample too.
+    """
+    from predict import build_match_model
+    return build_match_model(train, bayesian=bayesian, xg_before=xg_before)
+
+
 def _as_date(x):
     """Normalise pandas Timestamp / datetime to a plain date (loaders mix the two)."""
     m = getattr(x, "date", None)
     return m() if callable(m) else x
 
 
-def track_record(write: bool = True) -> dict:
-    """Score the pre-kickoff-frozen model on every WC2026 match played so far."""
+def track_record(write: bool = True, bayesian: bool = True) -> dict:
+    """Score the pre-kickoff-frozen model on every WC2026 match played so far.
+
+    Grades the **production** match model (the rating the dashboard ships: Bayesian Poisson + xG
+    blend + goals recalibration, with host advantage and altitude applied per fixture), frozen on
+    history before kickoff so there is no look-ahead. ``bayesian=False`` forces the MLE fallback.
+    """
     groups = loaders.load_wc2026_groups()
     teams = {t for g in groups.values() for t in g}
     allm = loaders.load_results(since="2014-01-01", min_team_matches=20, keep_teams=teams)
@@ -63,15 +84,18 @@ def track_record(write: bool = True) -> dict:
             _write(rec)
         return rec
 
-    # Freeze the rating on pre-kickoff history only — no look-ahead into tournament results.
+    # Freeze the production model on pre-kickoff history only — no look-ahead into tournament results.
     train = [m for m in allm if _as_date(m["date"]) < start]
-    dc = DixonColesModel(half_life_days=1100.0)
-    dc.fit(train)
-    model = MatchModel(dc)
+    model = _build_model(train, xg_before=start.isoformat(), bayesian=bayesian)
+    venue_alt = loaders.load_wc2026_group_venue_altitudes()  # altitude shift at the Mexican venues
 
     probs, outs, correct = [], [], 0
     for m in played:
-        p = list(model.wdl(m["home_team"], m["away_team"], neutral=True))
+        # score_fixture applies host advantage (host treated as home) + altitude exactly like the
+        # live simulator/dashboard, and returns W/D/L oriented to the listed home/away teams.
+        extra = _group_extra(m["home_team"], m["away_team"], venue_alt, None)
+        fs = score_fixture(model, m["home_team"], m["away_team"], extra_home=extra)
+        p = [fs.p_home, fs.p_draw, fs.p_away]
         o = _outcome(m["home_score"], m["away_score"])
         probs.append(p)
         outs.append(o)

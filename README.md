@@ -20,8 +20,10 @@ what does and doesn't move a forecast.
 - 🎯 **Calibrated, backtested** — out-of-sample validated across 9 tournaments (not just fit to one).
 - 🔄 **Live & self-updating** — a change-gated daily job re-fits only when new data lands, regenerates the
   dashboard, and publishes it; the page auto-reloads.
-- 📊 **Public track record** — every WC2026 match is scored against a rating *frozen before kickoff*
-  (leakage-free) and shown live on the dashboard.
+- 📊 **Public track record** — every WC2026 match is scored against the **production model** *frozen
+  before kickoff* (leakage-free, host advantage + altitude applied per fixture, same builder as the
+  forecast), and shown live on the dashboard. Hit-rate is reported as decisive-match accuracy —
+  draws are structurally unpickable by a single most-likely outcome (see [`FINDINGS.md`](FINDINGS.md)).
 - ⚽ **Predicted match scores** — every fixture gets a scoreline: expected goals, the most-likely exact
   score and its probability, and win/draw/loss. Played matches lock to their real result and knockout
   scores appear once the bracket is set — so the section sharpens live alongside the forecast.

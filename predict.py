@@ -117,8 +117,12 @@ def _member(params, xg_blend=None) -> MatchModel:
     return MatchModel(m, xg_blend=xg_blend, goals_recal=GOALS_RECAL)
 
 
-def _load_xg_blend():
-    """Build the (XGRatingParams, weight) blend from cached StatsBomb xG; None if unavailable."""
+def _load_xg_blend(before: str | None = None):
+    """Build the (XGRatingParams, weight) blend from cached StatsBomb xG; None if unavailable.
+
+    ``before`` (ISO date) restricts the fit to matches strictly earlier than that date — used by the
+    leakage-free track record so the rating that grades a WC2026 match never saw that match's xG.
+    """
     import json
     from pathlib import Path
 
@@ -128,6 +132,10 @@ def _load_xg_blend():
     try:
         from wc2026.ratings.xg_rating import XGRating
         recs = [r for v in json.loads(cache.read_text()).values() for r in v]
+        if before is not None:
+            recs = [r for r in recs if r["date"] < before]
+        if not recs:
+            return None
         return (XGRating().fit(recs), XG_BLEND_WEIGHT)
     except Exception:
         return None
@@ -165,6 +173,74 @@ def _save_bayes_cache(matches, n_boot, base, draws):
     p = _bayes_cache_path(matches, n_boot)
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(json.dumps({"base": asdict(base), "draws": [asdict(d) for d in draws]}))
+
+
+def fit_rating(matches, *, bayesian: bool = True, n_boot: int = 15):
+    """Production rating fit on ``matches`` → ``(base_params, member_params, bayesian_used)``.
+
+    The single definition of how the live forecast turns a match history into a rating: the
+    hierarchical Bayesian Poisson rating (cached) by default, else a time-weighted Dixon-Coles MLE
+    warm-started from the dynamic state-space rating. ``member_params`` are the posterior draws
+    (Bayesian) or bootstrap resamples (MLE) used to build the simulation ensemble. Shared by
+    ``main`` (live, full data) and ``build_match_model`` / the track record (frozen, leakage-free)
+    so the graded model can never drift from the forecast model.
+    """
+    elo = EloModel().fit(matches)
+    mm = float(np.mean(list(elo.ratings.values())))
+    elo_init = {t: (r - mm) / 400.0 for t, r in elo.ratings.items()}
+    # DC warm-start. The dynamic state-space rating (Lane 1 #1) seeds the *non-convex* DC MLE from a
+    # better rating than Elo and lands a better optimum out-of-sample (+0.0059 RPS pooled on
+    # WC2018+22). Used for the MLE path; the Bayesian default takes no warm-start (it samples priors).
+    try:
+        from wc2026.ratings.state_space import StateSpaceRating
+        _ss = StateSpaceRating()
+        _ss.fit(matches)
+        init = _ss.init_attack()
+        print("DC warm-start: dynamic state-space rating (gate +0.0059 RPS vs Elo seed).")
+    except Exception as e:
+        print(f"  state-space warm-start unavailable ({type(e).__name__}); using Elo seed.")
+        init = elo_init
+    if bayesian:
+        # Hierarchical Bayesian rating — the default: it beat MLE by 0.016 RPS on WC2022. MCMC is
+        # slow, so the posterior is cached by data vintage; the first run on a dataset fits (minutes)
+        # and reruns load instantly. Falls back to MLE if PyMC is absent.
+        cached = _load_bayes_cache(matches, n_boot)
+        if cached is not None:
+            base_params, draws = cached
+            print(f"Loaded cached Bayesian posterior ({len(draws)} draws).")
+        else:
+            try:
+                from wc2026.ratings.bayesian_dc import BayesianDixonColes
+                print("Fitting hierarchical Bayesian model (MCMC — a few minutes; cached for reuse)...")
+                bdc = BayesianDixonColes(**BAYES_CFG)
+                base_params = bdc.fit(matches)
+                draws = bdc.posterior_params(n_boot)
+                try:
+                    print(f"  sampler diagnostics: {bdc.diagnostics()}")
+                except Exception:
+                    pass
+                _save_bayes_cache(matches, n_boot, base_params, draws)
+            except Exception as e:
+                print(f"  Bayesian rating unavailable ({type(e).__name__}: {e}); using MLE.")
+                bayesian = False
+        if bayesian:
+            return base_params, draws, True
+    dc = DixonColesModel(half_life_days=1100.0)
+    dc.fit(matches, init_attack=init)
+    return dc.params, list(dc.bootstrap(matches, n_boot=n_boot, seed=1, init_attack=init)), False
+
+
+def build_match_model(matches, *, bayesian: bool = True, n_boot: int = 15,
+                      xg_before: str | None = None) -> MatchModel:
+    """The production **central** match model (rating + xG blend + goals recalibration) fit on
+    ``matches`` — the same object ``main`` uses for the dashboard's per-fixture scorelines.
+
+    Single source of truth for the leakage-free track record: ``score_live`` freezes ``matches`` on
+    pre-kickoff history and passes ``xg_before`` so the xG blend is out-of-sample too, then scores
+    each WC2026 match through this model with host advantage + altitude applied per fixture.
+    """
+    base_params, _, _ = fit_rating(matches, bayesian=bayesian, n_boot=n_boot)
+    return _member(base_params, _load_xg_blend(before=xg_before))
 
 
 def build_payload(teams, groups, matches, champ, market_champ, blended, sd, result,
@@ -383,54 +459,11 @@ def main(n_sims: int = 30_000, n_boot: int = 15, refresh: bool = False,
     stage = (f"knockouts: real bracket + {len(ko_results)} KO results locked"
              if known_bracket else f"{len(played)}/72 group matches played")
     print(f"Conditioning on {stage}.")
-    elo = EloModel().fit(matches)
-    mm = float(np.mean(list(elo.ratings.values())))
-    elo_init = {t: (r - mm) / 400.0 for t, r in elo.ratings.items()}
-    # DC warm-start. The dynamic state-space rating (Lane 1 #1) seeds the *non-convex* DC MLE from a
-    # better rating than Elo and lands a better optimum out-of-sample (+0.0059 RPS pooled on WC2018+22,
-    # positive on both). Used for the MLE path + bootstrap ensemble; the Bayesian default takes no
-    # warm-start (it samples from priors) and is unaffected.
-    try:
-        from wc2026.ratings.state_space import StateSpaceRating
-        _ss = StateSpaceRating()
-        _ss.fit(matches)
-        init = _ss.init_attack()
-        print("DC warm-start: dynamic state-space rating (gate +0.0059 RPS vs Elo seed).")
-    except Exception as e:
-        print(f"  state-space warm-start unavailable ({type(e).__name__}); using Elo seed.")
-        init = elo_init
     xg_blend = _load_xg_blend()  # gate-passed StatsBomb xG blend (+0.0058 RPS), None if cache absent
-    if bayesian:
-        # Hierarchical Bayesian rating — the default: it beat MLE by 0.016 RPS on WC2022 (the biggest
-        # single rating gain). MCMC is slow, so the posterior is cached by data vintage — the first
-        # run on new data fits (~minutes), reruns load instantly. Falls back to MLE if PyMC is absent.
-        cached = _load_bayes_cache(matches, n_boot)
-        if cached is not None:
-            base_params, draws = cached
-            print(f"Loaded cached Bayesian posterior ({len(draws)} draws).")
-        else:
-            try:
-                from wc2026.ratings.bayesian_dc import BayesianDixonColes
-                print("Fitting hierarchical Bayesian model (MCMC — a few minutes; cached for reuse)...")
-                bdc = BayesianDixonColes(**BAYES_CFG)
-                base_params = bdc.fit(matches)
-                draws = bdc.posterior_params(n_boot)
-                try:
-                    print(f"  sampler diagnostics: {bdc.diagnostics()}")
-                except Exception:
-                    pass
-                _save_bayes_cache(matches, n_boot, base_params, draws)
-            except Exception as e:
-                print(f"  Bayesian rating unavailable ({type(e).__name__}: {e}); using MLE.")
-                bayesian = False
-        if bayesian:
-            ensemble = [_member(p, xg_blend) for p in draws]
-    if not bayesian:
-        dc = DixonColesModel(half_life_days=1100.0)
-        dc.fit(matches, init_attack=init)
-        base_params = dc.params
-        ensemble = [_member(p, xg_blend)
-                    for p in dc.bootstrap(matches, n_boot=n_boot, seed=1, init_attack=init)]
+    # Production rating fit (Bayesian default → MLE/state-space fallback). Shared with the
+    # leakage-free track record via build_match_model so the graded model can't drift (see fit_rating).
+    base_params, member_params, bayesian = fit_rating(matches, bayesian=bayesian, n_boot=n_boot)
+    ensemble = [_member(p, xg_blend) for p in member_params]
     if xg_blend is not None:
         print(f"xG rating blended (w={XG_BLEND_WEIGHT}) for {len(xg_blend[0].attack)} teams with StatsBomb xG.")
     _ = base_params  # available for diagnostics / missing-team checks

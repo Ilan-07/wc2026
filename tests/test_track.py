@@ -7,6 +7,7 @@ rating so the orchestration and W/D/L scoring are verified without waiting for J
 from __future__ import annotations
 
 from datetime import date
+from types import SimpleNamespace
 
 import score_live
 
@@ -31,21 +32,24 @@ def test_pending_before_kickoff(monkeypatch, tmp_path):
 def test_live_scoring_path(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
     start = date(2026, 6, 11)
-    # Enough pre-kickoff X-vs-Y history that the frozen DC fit succeeds (real fit, small data).
     train = [{"date": date(2024, 1, 1), "importance": "friendly", "home_team": "X", "away_team": "Y",
               "home_score": s % 3, "away_score": (s + 1) % 2} for s in range(30)]
     played = [
         {"date": start, "importance": "world_cup", "home_team": "X", "away_team": "Y",
-         "home_score": 2, "away_score": 1},   # home win — model (argmax=home) is correct
+         "home_score": 2, "away_score": 1},   # home win — model (pick=home) is correct
         {"date": start, "importance": "world_cup", "home_team": "X", "away_team": "Y",
-         "home_score": 0, "away_score": 0},   # draw — model is wrong
+         "home_score": 0, "away_score": 0},   # draw — model is wrong (and unpickable)
     ]
     monkeypatch.setattr(score_live.loaders, "load_wc2026_groups", lambda *a, **k: {"A": ["X", "Y"]})
     monkeypatch.setattr(score_live.loaders, "load_wc2026_group_fixtures",
                         lambda *a, **k: [(start, "X", "Y", "City")])
     monkeypatch.setattr(score_live.loaders, "load_results", lambda *a, **k: train + played)
-    # Stub only W/D/L so the scoring assertions are deterministic (the DC fit itself is real).
-    monkeypatch.setattr(score_live.MatchModel, "wdl", lambda self, h, a, neutral=True: (0.5, 0.3, 0.2))
+    monkeypatch.setattr(score_live.loaders, "load_wc2026_group_venue_altitudes", lambda *a, **k: {})
+    # Stub the (slow) production model build + the W/D/L it produces so the scoring orchestration is
+    # tested deterministically without a real Bayesian fit.
+    monkeypatch.setattr(score_live, "_build_model", lambda *a, **k: object())
+    monkeypatch.setattr(score_live, "score_fixture",
+                        lambda model, h, a, **k: SimpleNamespace(p_home=0.5, p_draw=0.3, p_away=0.2))
 
     rec = score_live.track_record(write=True)
     assert rec["status"] == "live"
