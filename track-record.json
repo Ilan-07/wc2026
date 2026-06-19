@@ -1,15 +1,15 @@
 {
   "kickoff": "2026-06-11",
-  "updated": "2026-06-19T10:11:28",
-  "n_matches": 24,
+  "updated": "2026-06-19T17:16:56",
+  "n_matches": 28,
   "status": "live",
-  "rps": 0.1703,
-  "uniform_rps": 0.2153,
-  "skill": 0.045,
-  "log_loss": 0.9732,
-  "brier": 0.6009,
-  "calls_correct": 13,
-  "calls_decisive": 13,
-  "n_decisive": 15,
-  "n_draws": 9
+  "rps": 0.1614,
+  "uniform_rps": 0.2183,
+  "skill": 0.0569,
+  "log_loss": 0.9381,
+  "brier": 0.5714,
+  "calls_correct": 16,
+  "calls_decisive": 16,
+  "n_decisive": 18,
+  "n_draws": 10
 }
