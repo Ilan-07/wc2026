@@ -8,12 +8,14 @@ bracket order, is one of:
   * ('3', {candidate groups}) — a best-third from one of those groups (FIFA allocation)
 
 ``build_official_bracket`` fills the template from group standings, resolving the third-place slots
-by constraint matching. The result is the real bracket order, auto-assembled — no manual file.
+via FIFA's official Annexe-C allocation table. The result is the real bracket order, auto-assembled.
 
-Source: en.wikipedia.org "2026 FIFA World Cup knockout stage" (Round of 32 fixture list).
+Source: FWC26 Regulations, Article 12.6 (Round-of-32 fixture list) and Annexe C (third allocation).
 """
 
 from __future__ import annotations
+
+from .third_allocation import allocate_thirds
 
 # 32 slots in bracket order; adjacent pairs (0,1),(2,3),... are the Round-of-32 matches.
 SLOT_SPECS: list[tuple] = [
@@ -37,29 +39,21 @@ SLOT_SPECS: list[tuple] = [
 
 THIRD_SLOTS = [i for i, s in enumerate(SLOT_SPECS) if s[0] == "3"]
 
+# Each third-slot sits opposite a group winner in its Round-of-32 match; that winner's column in
+# Annexe C tells us which third belongs in the slot. winner-group letter -> third-slot index.
+_SLOT_BY_WINNER: dict[str, int] = {
+    SLOT_SPECS[i - 1 if i % 2 else i + 1][1]: i for i in THIRD_SLOTS
+}
+
 
 def _match_thirds(qualified_third_groups: list[str]) -> dict[int, str]:
-    """Assign each qualified third's group to a third-slot honoring candidate constraints.
+    """Map each qualifying third's group to its third-slot using FIFA's Annexe-C table.
 
-    Bipartite (augmenting-path) matching of the 8 qualifying groups to the 8 third-slots; FIFA's
-    candidate sets are designed so a valid perfect matching always exists.
+    The candidate sets only constrain the assignment; FIFA's published table fixes it exactly.
+    Returns ``slot_index -> group``.
     """
-    cands = {i: SLOT_SPECS[i][1] for i in THIRD_SLOTS}
-    slot_of_group: dict[str, int] = {}
-
-    def aug(group, visited):
-        for s in THIRD_SLOTS:
-            if group in cands[s] and s not in visited:
-                visited.add(s)
-                cur = next((g for g, ss in slot_of_group.items() if ss == s), None)
-                if cur is None or aug(cur, visited):
-                    slot_of_group[group] = s
-                    return True
-        return False
-
-    for g in qualified_third_groups:
-        aug(g, set())
-    return {s: g for g, s in slot_of_group.items()}
+    winner_to_third = allocate_thirds(qualified_third_groups)  # winner group -> third group
+    return {_SLOT_BY_WINNER[w]: g for w, g in winner_to_third.items()}
 
 
 def build_official_bracket(

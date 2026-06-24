@@ -729,6 +729,28 @@ def test_official_bracket_fills_and_respects_third_constraints():
         assert team[1] in SLOT_SPECS[i][1]  # group letter in the slot's candidate set
 
 
+def test_official_bracket_matches_fifa_annexe_c_all_495():
+    """The engine must reproduce FIFA's Annexe-C third-place allocation for every combination."""
+    from wc2026.simulate.bracket import SLOT_SPECS, THIRD_SLOTS, build_official_bracket
+    from wc2026.simulate.third_allocation import THIRD_ALLOCATION
+
+    assert len(THIRD_ALLOCATION) == 495  # C(12, 8) — every qualifying-third combination
+    # third-slot index -> the group winner it faces in the Round of 32
+    winner_of_slot = {i: SLOT_SPECS[i - 1 if i % 2 else i + 1][1] for i in THIRD_SLOTS}
+    W = {g: f"W{g}" for g in "ABCDEFGHIJKL"}
+    R = {g: f"R{g}" for g in "ABCDEFGHIJKL"}
+    for third_groups, official in THIRD_ALLOCATION.items():
+        thirds = {g: f"3{g}" for g in third_groups}
+        br = build_official_bracket(W, R, thirds)
+        assert len(br) == 32 and len(set(br)) == 32
+        # winner-group -> third-group as actually built, then compare to the official table
+        built = {winner_of_slot[i]: br[i][1] for i in THIRD_SLOTS}
+        assert built == official
+        # FIFA guarantees no two same-group teams meet in the Round of 32
+        for i in range(0, 32, 2):
+            assert br[i][1] != br[i + 1][1]
+
+
 # ----------------------------------------------------------------- knockout conditioning
 def test_knockout_conditioning_with_hypothetical_bracket():
     teams = synthetic.make_teams(48, seed=0)
