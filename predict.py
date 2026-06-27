@@ -243,9 +243,42 @@ def build_match_model(matches, *, bayesian: bool = True, n_boot: int = 15,
     return _member(base_params, _load_xg_blend(before=xg_before))
 
 
+def _group_standings(teams: list[str], played: dict) -> list[str] | None:
+    """Actual final group standings from played results, or None until the group is complete.
+
+    Ranks the four teams 1st..4th by points, then goal difference, then goals scored (name as a
+    stable final tie-break). Returns None unless all six group matches have a real result, so the
+    caller falls back to the simulator's projection while a group is still in progress. ``played``
+    is ``{frozenset({home, away}): (home_team, home_score, away_score)}``.
+    """
+    from itertools import combinations
+
+    pairs = [frozenset(p) for p in combinations(teams, 2)]
+    if any(p not in played for p in pairs):
+        return None  # group not fully played yet — leave the slotting to the projection
+    pts = {t: 0 for t in teams}
+    gd = {t: 0 for t in teams}
+    gf = {t: 0 for t in teams}
+    for p in pairs:
+        h, hs, as_ = played[p]
+        a = next(t for t in p if t != h)
+        gf[h] += hs
+        gf[a] += as_
+        gd[h] += hs - as_
+        gd[a] += as_ - hs
+        if hs > as_:
+            pts[h] += 3
+        elif as_ > hs:
+            pts[a] += 3
+        else:
+            pts[h] += 1
+            pts[a] += 1
+    return sorted(teams, key=lambda t: (-pts[t], -gd[t], -gf[t], t))
+
+
 def build_payload(teams, groups, matches, champ, market_champ, blended, sd, result,
                   avail, n_sims, bayesian, played, news, pick, p_pick, score_model=None,
-                  psi=None, shootout_model=None) -> dict:
+                  psi=None, shootout_model=None, known_bracket=None) -> dict:
     """Assemble the full data object the interactive dashboard renders from.
 
     ``score_model`` is the central match model used to attach a predicted scoreline to every
@@ -324,21 +357,29 @@ def build_payload(teams, groups, matches, champ, market_champ, blended, sd, resu
             "g1": f"hsl({h},60%,58%)", "g2": f"hsl({(h + 38) % 360},55%,42%)",
         })
 
-    # projected bracket: group qualifiers fill the official template (only the model gives group
-    # standings); knockout advancement uses the BLENDED (market-anchored) title probability, NOT
-    # the raw model champ% — the latter double-counts path luck and lets easy-route minnows leapfrog
-    # far stronger teams. Strength (blend) is the coherent advancement metric.
+    # bracket: group qualifiers fill the official Round-of-32 template. Once the real R32 fixtures are
+    # known they take over verbatim (known_bracket, from data/raw/wc2026_bracket.txt); otherwise we
+    # seed each group's 1st/2nd/3rd from its ACTUAL final standings the moment that group is decided,
+    # falling back to the simulator's qualification probability (q) only for groups still in progress.
+    # This stops a decided group's winner/runner-up from being slotted by q (a top-2 probability that
+    # can't tell first from second, or even mistake a qualifier for the third). Knockout advancement
+    # then uses the BLENDED (market-anchored) title probability, NOT the raw model champ% — the latter
+    # double-counts path luck and lets easy-route minnows leapfrog far stronger teams.
     q = result.reach_prob["r16"]
-    winners, runners, thirds = {}, {}, []
-    for g, ts in groups.items():
-        order = sorted(ts, key=lambda t: q[t], reverse=True)
-        winners[g], runners[g] = order[0], order[1]
-        thirds.append((g, order[2]))
-    best = dict(sorted(thirds, key=lambda gt: q[gt[1]], reverse=True)[:8])
-    try:
-        border = build_official_bracket(winners, runners, best)
-    except Exception:
-        border = sorted(teams, key=lambda t: blended[t], reverse=True)[:32]
+    border = None
+    if known_bracket and len(known_bracket) == 32:
+        border = list(known_bracket)  # real, published R32 fixtures — use them exactly
+    if border is None:
+        winners, runners, thirds = {}, {}, []
+        for g, ts in groups.items():
+            order = _group_standings(ts, played) or sorted(ts, key=lambda t: q[t], reverse=True)
+            winners[g], runners[g] = order[0], order[1]
+            thirds.append((g, order[2]))
+        best = dict(sorted(thirds, key=lambda gt: q[gt[1]], reverse=True)[:8])
+        try:
+            border = build_official_bracket(winners, runners, best)
+        except Exception:
+            border = sorted(teams, key=lambda t: blended[t], reverse=True)[:32]
     rounds, alive = [], border
     while len(alive) > 1:
         nd, nxt = [], []
@@ -541,6 +582,7 @@ def main(n_sims: int = 30_000, n_boot: int = 15, refresh: bool = False,
         teams, groups, matches, champ, market_champ, blended, sd, result,
         bool(avail) and avail or {}, n_sims, bayesian, played, news, pick, p_pick,
         score_model=score_model, psi=psi, shootout_model=shootout_model,
+        known_bracket=known_bracket,
     )
 
     # Console preview of the per-match scorelines (the dashboard shows the full section).
