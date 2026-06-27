@@ -190,6 +190,6 @@ already prices it in).</p>
 {_news_feed(news)}
 
 <p class="note" style="margin-top:40px">Forecast is fundamentals + market only. Venues treated as
-neutral (host advantage not yet modelled); knockout third-place allocation is performance-seeded.
-Odds are an editable snapshot, not live. This is an analytics tool, not betting advice.</p>
+neutral except hosts (US/Canada/Mexico carry home advantage); knockout third-place allocation is
+performance-seeded. Odds are an editable snapshot, not live. This is an analytics tool, not betting advice.</p>
 </div></body></html>"""

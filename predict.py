@@ -243,13 +243,17 @@ def build_match_model(matches, *, bayesian: bool = True, n_boot: int = 15,
     return _member(base_params, _load_xg_blend(before=xg_before))
 
 
-def _group_standings(teams: list[str], played: dict) -> list[str] | None:
-    """Actual final group standings from played results, or None until the group is complete.
+def _group_standings(
+    teams: list[str], played: dict
+) -> tuple[list[str], dict[str, tuple[int, int, int]]] | None:
+    """Actual final group table from played results, or None until the group is complete.
 
-    Ranks the four teams 1st..4th by points, then goal difference, then goals scored (name as a
-    stable final tie-break). Returns None unless all six group matches have a real result, so the
-    caller falls back to the simulator's projection while a group is still in progress. ``played``
-    is ``{frozenset({home, away}): (home_team, home_score, away_score)}``.
+    Returns ``(order, records)`` where ``order`` ranks the four teams 1st..4th by points, then goal
+    difference, then goals scored (name as a stable final tie-break), and ``records`` maps each team
+    to its ``(points, goal_difference, goals_for)`` — the same triple FIFA uses to rank the
+    third-placed teams across groups (Annexe C). Returns None unless all six group matches have a
+    real result, so the caller falls back to the simulator's projection while a group is still in
+    progress. ``played`` is ``{frozenset({home, away}): (home_team, home_score, away_score)}``.
     """
     from itertools import combinations
 
@@ -273,7 +277,8 @@ def _group_standings(teams: list[str], played: dict) -> list[str] | None:
         else:
             pts[h] += 1
             pts[a] += 1
-    return sorted(teams, key=lambda t: (-pts[t], -gd[t], -gf[t], t))
+    order = sorted(teams, key=lambda t: (-pts[t], -gd[t], -gf[t], t))
+    return order, {t: (pts[t], gd[t], gf[t]) for t in teams}
 
 
 def build_payload(teams, groups, matches, champ, market_champ, blended, sd, result,
@@ -371,11 +376,26 @@ def build_payload(teams, groups, matches, champ, market_champ, blended, sd, resu
         border = list(known_bracket)  # real, published R32 fixtures — use them exactly
     if border is None:
         winners, runners, thirds = {}, {}, []
+        third_record: dict[str, tuple[int, int, int]] = {}  # group -> its 3rd-placed team's (pts, gd, gf)
+        all_decided = True
         for g, ts in groups.items():
-            order = _group_standings(ts, played) or sorted(ts, key=lambda t: q[t], reverse=True)
+            table = _group_standings(ts, played)
+            if table is None:
+                all_decided = False
+                order = sorted(ts, key=lambda t: q[t], reverse=True)
+            else:
+                order, records = table
+                third_record[g] = records[order[2]]
             winners[g], runners[g] = order[0], order[1]
             thirds.append((g, order[2]))
-        best = dict(sorted(thirds, key=lambda gt: q[gt[1]], reverse=True)[:8])
+        # Rank the 12 third-placed teams to pick the 8 that qualify. Once every group is decided use
+        # FIFA's real Annexe-C ordering (points, goal difference, goals scored); while any group is
+        # still in progress its final record is unknown, so fall back to the simulator's qualification
+        # probability (q) across the board for a coherent, single-axis projection.
+        if all_decided:
+            best = dict(sorted(thirds, key=lambda gt: third_record[gt[0]], reverse=True)[:8])
+        else:
+            best = dict(sorted(thirds, key=lambda gt: q[gt[1]], reverse=True)[:8])
         try:
             border = build_official_bracket(winners, runners, best)
         except Exception:
