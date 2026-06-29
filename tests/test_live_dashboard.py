@@ -64,3 +64,30 @@ def test_build_app_injects_reload_tag():
     html = build_app({}, generated="2026-06-07 18:00", reload_secs=120)
     assert '<meta http-equiv="refresh" content="120">' in html
     assert "__RELOAD__" not in html                                  # token fully substituted
+
+
+def test_align_bracket_snaps_scaffold_to_real_ties():
+    # Scaffold mis-pairs the two third-placed teams (X/Y); the real ties swap them. Alignment must
+    # keep every adjacent pair a real tie while preserving the slot positions of the exact matches.
+    scaffold = ["A", "X", "B", "Y", "C", "D", "E", "F"]
+    fixtures = [("A", "Y"), ("B", "X"), ("C", "D"), ("E", "F")]
+    out = predict._align_bracket_to_fixtures(scaffold, fixtures)
+    pairs = {frozenset((out[i], out[i + 1])) for i in range(0, len(out), 2)}
+    assert pairs == {frozenset(f) for f in fixtures}                 # every pair is a real tie
+    assert sorted(out) == sorted(scaffold)                           # same 8 teams, no dupes/drops
+    assert (out[4], out[5]) == ("C", "D") and (out[6], out[7]) == ("E", "F")  # exact ties stay put
+
+
+def test_derive_known_bracket_matches_published_r32():
+    # Against the live dataset: once the knockout draw is published, the derived bracket must equal
+    # the real Round-of-32 ties exactly (32 distinct teams, 16 official pairs) — never the template's
+    # re-derivation, which can misallocate third-placed teams.
+    fixtures = predict.loaders.load_wc2026_r32_fixtures()
+    if not fixtures:
+        pytest.skip("knockout draw not yet published in results.csv")
+    groups = predict.loaders.load_wc2026_groups()
+    played = predict.loaders.load_wc2026_played_groups()
+    border = predict._derive_known_bracket(groups, played)
+    assert border is not None and len(border) == len(set(border)) == 32
+    derived = {frozenset((border[i], border[i + 1])) for i in range(0, 32, 2)}
+    assert derived == {frozenset(f) for f in fixtures}

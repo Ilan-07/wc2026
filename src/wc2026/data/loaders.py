@@ -254,6 +254,33 @@ def load_bracket_file(path: str | Path | None = None) -> list[str] | None:
     return teams if len(teams) == 32 else None
 
 
+def load_wc2026_r32_fixtures(path: str | Path | None = None) -> list[tuple[str, str]] | None:
+    """The 16 real Round-of-32 ties as ``(home, away)``, or None until all are scheduled.
+
+    Once the knockout draw is published, ``results.csv`` lists the actual R32 fixtures. They are
+    the earliest cross-group (different-group) 2026 World Cup fixtures in which each of the 32
+    qualifiers appears exactly once — later knockout rounds reuse teams, so taking ties in date
+    order until 32 distinct teams are seen isolates the Round of 32 cleanly, played or not. This
+    is the source of truth for the bracket: the slot template can only *re-derive* it, and its
+    Annexe-C third allocation does not always match a given edition's published draw.
+    """
+    df = _read_raw(path)
+    wc = df[(df["tournament"] == "FIFA World Cup") & (df["date"].dt.year == 2026)].sort_values("date")
+    groups = load_wc2026_groups(path)
+    group_of = {t: g for g, ts in groups.items() for t in ts}
+    seen: set[str] = set()
+    ties: list[tuple[str, str]] = []
+    for r in wc.itertuples(index=False):
+        h, a = r.home_team, r.away_team
+        if group_of.get(h) and group_of.get(a) and group_of[h] != group_of[a]:
+            if h in seen or a in seen:
+                continue  # a repeated team means we've reached a later round
+            seen.add(h)
+            seen.add(a)
+            ties.append((h, a))
+    return ties if len(ties) == 16 else None
+
+
 def load_shootout_psi(path: str | Path | None = None, prior: float = 4.0) -> dict[str, float]:
     """Per-team penalty-shootout skill psi in [0,1] from historical shootout results.
 

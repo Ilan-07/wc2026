@@ -68,8 +68,10 @@ results · odds · xG · squads · injuries
 ```
 
 **Live conditioning** locks played group and knockout results so the forecast updates each matchday; the
-Round-of-32 bracket auto-assembles from the official template. **Explanation layer** (`intel`): a knowledge
-graph plus a deterministic Analyst→Market→Contrarian→Judge pipeline — traceability, not prediction.
+Round-of-32 bracket follows the **real published fixtures** the moment the knockout draw lands (read straight
+from the results feed), falling back to the official slot template only as a pre-knockout projection.
+**Explanation layer** (`intel`): a knowledge graph plus a deterministic Analyst→Market→Contrarian→Judge
+pipeline — traceability, not prediction.
 
 ## Data sources
 

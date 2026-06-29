@@ -281,6 +281,63 @@ def _group_standings(
     return order, {t: (pts[t], gd[t], gf[t]) for t in teams}
 
 
+def _align_bracket_to_fixtures(scaffold: list[str], fixtures: list[tuple[str, str]]) -> list[str]:
+    """Snap a 32-team scaffold onto the real ties so every adjacent pair is an official fixture.
+
+    Each scaffold slot keeps its tree position; a tie that already sits in a slot stays put, and
+    the rest are filled by the leftover tie that shares the most teams with that slot. The two
+    cover the same 32 teams, so this is a perfect re-pairing. Preserves each tie's home/away order.
+    """
+    by_set = {frozenset(f): f for f in fixtures}
+    remaining = set(by_set)
+    slots = [(scaffold[i], scaffold[i + 1]) for i in range(0, len(scaffold), 2)]
+    chosen: list[tuple[str, str] | None] = [None] * len(slots)
+    for i, (a, b) in enumerate(slots):  # pass 1: ties already in their template slot
+        key = frozenset((a, b))
+        if key in remaining:
+            chosen[i] = by_set[key]
+            remaining.discard(key)
+    for i, (a, b) in enumerate(slots):  # pass 2: best-overlap for the remaining slots
+        if chosen[i] is not None:
+            continue
+        key = max(remaining, key=lambda f, a=a, b=b: len(f & {a, b}))
+        chosen[i] = by_set[key]
+        remaining.discard(key)
+    return [t for pair in chosen for t in pair]  # type: ignore[union-attr]
+
+
+def _derive_known_bracket(groups: dict, played: dict) -> list[str] | None:
+    """Real Round-of-32 bracket (32 teams in bracket order) from the published fixtures, or None.
+
+    Once the knockout draw is scheduled, ``results.csv`` carries the actual R32 ties. The official
+    slot template can re-derive most of them, but its Annexe-C third allocation does not always
+    match a given edition's published draw — so we take the real ties as ground truth and use the
+    template only as a positional scaffold. Every adjacent pair in the result is a real fixture,
+    placed in the slot it best matches, so the downstream bracket tree stays in official order.
+    Returns None until all 16 ties are scheduled and every group is decided.
+    """
+    from wc2026.simulate.bracket import build_official_bracket
+
+    fixtures = loaders.load_wc2026_r32_fixtures()
+    if not fixtures or len(fixtures) != 16:
+        return None
+    winners, runners, thirds, third_record = {}, {}, [], {}
+    for g, ts in groups.items():
+        table = _group_standings(ts, played)
+        if table is None:
+            return None  # a group still in progress -> no reliable scaffold
+        order, records = table
+        winners[g], runners[g] = order[0], order[1]
+        thirds.append((g, order[2]))
+        third_record[g] = records[order[2]]
+    best = dict(sorted(thirds, key=lambda gt: third_record[gt[0]], reverse=True)[:8])
+    try:
+        scaffold = build_official_bracket(winners, runners, best)
+    except Exception:
+        scaffold = [t for f in fixtures for t in f]  # any valid 32; alignment fixes the pairs
+    return _align_bracket_to_fixtures(scaffold, fixtures)
+
+
 def build_payload(teams, groups, matches, champ, market_champ, blended, sd, result,
                   avail, n_sims, bayesian, played, news, pick, p_pick, score_model=None,
                   psi=None, shootout_model=None, known_bracket=None) -> dict:
@@ -442,7 +499,7 @@ def build_payload(teams, groups, matches, champ, market_champ, blended, sd, resu
             loaders.load_wc2026_group_fixtures(),
             played,
             groups,
-            bracket=loaders.load_bracket_file(),
+            bracket=known_bracket,  # the real (or derived) R32 ties, so KO scorelines match the tree
             played_ko=loaders.load_wc2026_played_knockouts(),
             venue_alt=loaders.load_wc2026_group_venue_altitudes(),
             psi=psi,
@@ -515,7 +572,10 @@ def main(n_sims: int = 30_000, n_boot: int = 15, refresh: bool = False,
     played = loaders.load_wc2026_played_groups()  # conditioning: locked group results
     venue_alt = loaders.load_wc2026_group_venue_altitudes()  # altitude at Mexican venues
     ko_results = loaders.load_wc2026_knockout_results()  # locked knockout results
-    known_bracket = loaders.load_bracket_file()  # real R32 bracket once the group stage is done
+    # Real R32 bracket once the group stage is done: a supplied bracket file wins, else derive it
+    # straight from the published knockout fixtures in results.csv (the template can misallocate
+    # third-placed teams, so the real ties are the source of truth).
+    known_bracket = loaders.load_bracket_file() or _derive_known_bracket(groups, played)
 
     stage = (f"knockouts: real bracket + {len(ko_results)} KO results locked"
              if known_bracket else f"{len(played)}/72 group matches played")
