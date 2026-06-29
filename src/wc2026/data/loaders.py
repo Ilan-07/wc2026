@@ -299,20 +299,29 @@ def load_wc2026_groups(path: str | Path | None = None) -> dict[str, list[str]]:
     """Reconstruct the real WC2026 12-group draw from the scheduled fixtures.
 
     The group stage is a round-robin within each group of four, so two teams share a group
-    iff they are scheduled to play each other. We build that graph from the 72 unplayed
-    "FIFA World Cup" 2026 fixtures and read off the connected components (cliques of 4).
-    Groups are then labelled A..L by the date of each group's first kickoff.
+    iff they play each other in the group phase. We build that graph from the "FIFA World Cup"
+    2026 fixtures and read off the connected components (cliques of 4). Groups are then labelled
+    A..L by the date of each group's first kickoff.
+
+    Once the knockout phase begins, the dataset also contains cross-group fixtures (R32 onward)
+    that would merge the group cliques. We exclude them by capping each team at its three
+    group opponents: walking the fixtures in date order, a match is a group edge only while
+    *both* teams still have fewer than three opponents recorded. Every team plays exactly three
+    group games, so all later (knockout) fixtures are naturally rejected.
     """
     df = _read_raw(path)
     wc = df[(df["tournament"] == "FIFA World Cup") & (df["date"].dt.year == 2026)]
     if wc.empty:
         raise ValueError("No 2026 FIFA World Cup fixtures found in the dataset.")
+    wc = wc.sort_values("date")
 
-    # adjacency of group opponents
+    # adjacency of group opponents (group stage = round-robin, so degree 3 per team)
     adj: dict[str, set[str]] = {}
     first_seen: dict[str, pd.Timestamp] = {}
     for r in wc.itertuples(index=False):
         a, b = r.home_team, r.away_team
+        if len(adj.get(a, ())) >= 3 or len(adj.get(b, ())) >= 3:
+            continue  # both teams already have their three group opponents -> knockout fixture
         adj.setdefault(a, set()).add(b)
         adj.setdefault(b, set()).add(a)
         for t in (a, b):
