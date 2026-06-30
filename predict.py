@@ -281,6 +281,19 @@ def _group_standings(
     return order, {t: (pts[t], gd[t], gf[t]) for t in teams}
 
 
+def _knockout_advances_a(a: str, b: str, ko_winners: dict, blended: dict) -> bool:
+    """Does team ``a`` advance past ``b`` in the bracket tree?
+
+    A played, decided knockout tie locks its real winner (``ko_winners`` includes shootout winners),
+    exactly as group results lock. A tie that hasn't been played, or finished level with no recorded
+    shootout result, is undecided and falls back to the blended (market-anchored) title probability.
+    """
+    won = ko_winners.get(frozenset((a, b)))
+    if won in (a, b):
+        return won == a
+    return bool(blended.get(a, 0) >= blended.get(b, 0))
+
+
 def _bracket_order_from_fixtures(
     r32_ties: list[tuple[str, str]], later_fixtures: list[tuple[str, str]]
 ) -> list[str]:
@@ -457,12 +470,18 @@ def build_payload(teams, groups, matches, champ, market_champ, blended, sd, resu
             border = build_official_bracket(winners, runners, best)
         except Exception:
             border = sorted(teams, key=lambda t: blended[t], reverse=True)[:32]
+    # A played, decided knockout tie locks its real winner into the tree (same as group results) —
+    # including shootout winners from shootouts.csv. A tie that finished level with no recorded
+    # shootout result is still undecided, so it falls back to the blended title probability, as do
+    # all future (unplayed) ties. The blended (market-anchored) probability is used rather than the
+    # raw model champ% — the latter double-counts path luck and lets easy-route minnows leapfrog.
+    ko_winners = loaders.load_wc2026_knockout_results()
     rounds, alive = [], border
     while len(alive) > 1:
         nd, nxt = [], []
         for i in range(0, len(alive), 2):
             a, b = alive[i], alive[i + 1]
-            wa = bool(blended.get(a, 0) >= blended.get(b, 0))
+            wa = _knockout_advances_a(a, b, ko_winners, blended)
             nd.append({"team": a, "prob": float(blended.get(a, 0)), "win": wa, "group": gof.get(a, "")})
             nd.append({"team": b, "prob": float(blended.get(b, 0)), "win": not wa, "group": gof.get(b, "")})
             nxt.append(a if wa else b)

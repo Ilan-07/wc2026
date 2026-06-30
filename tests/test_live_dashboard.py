@@ -88,6 +88,16 @@ def test_bracket_order_falls_back_chronologically_without_edges():
     assert out == ["A", "B", "C", "D", "E", "F", "G", "H"]
 
 
+def test_knockout_advance_locks_real_winner_over_probability():
+    blended = {"Germany": 0.20, "Paraguay": 0.01}      # Germany is the heavy favourite
+    # Undecided tie (no recorded result) -> the favourite advances.
+    assert predict._knockout_advances_a("Germany", "Paraguay", {}, blended) is True
+    # A recorded upset (Paraguay won, e.g. on penalties) must lock over the probability.
+    ko = {frozenset(("Germany", "Paraguay")): "Paraguay"}
+    assert predict._knockout_advances_a("Germany", "Paraguay", ko, blended) is False
+    assert predict._knockout_advances_a("Paraguay", "Germany", ko, blended) is True  # order-independent
+
+
 def test_derive_known_bracket_matches_published_r32():
     # Against the live dataset: once the knockout draw is published, the derived bracket must equal
     # the real Round-of-32 ties exactly (32 distinct teams, 16 official pairs) — never the template's
