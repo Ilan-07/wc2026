@@ -68,9 +68,11 @@ results · odds · xG · squads · injuries
 ```
 
 **Live conditioning** locks played group and knockout results so the forecast updates each matchday; the
-Round-of-32 bracket — pairs **and tree** — follows the **real published fixtures** the moment the knockout
-draw lands: ties and the later-round structure connecting them are read straight from the schedule's
-advancement chain, falling back to the official slot template only as a pre-knockout projection.
+knockout bracket — pairs **and tree** — follows the **real published draw**. The R32 ties come from the
+results feed; the tree connecting them (which tie meets which in the R16/QF/SF) is taken from the published
+bracket in `data/raw/wc2026_bracket.txt`, since later-round fixtures don't enter the feed until teams
+advance. Absent that file the tree is reconstructed from the schedule's own advancement chain as fixtures
+appear, falling back to the official slot template only as a pre-knockout projection.
 **Explanation layer** (`intel`): a knowledge graph plus a deterministic Analyst→Market→Contrarian→Judge
 pipeline — traceability, not prediction.
 

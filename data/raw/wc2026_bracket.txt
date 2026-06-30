@@ -1,0 +1,41 @@
+# WC2026 knockout bracket — 32 teams in official bracket-leaf order (FIFA/FOX published draw).
+# Adjacent pairs are the Round-of-32 ties; folding this order reproduces the real R16/QF/SF tree.
+# This is the source of truth for the bracket STRUCTURE: results.csv carries the ties and scores
+# but not the tree connecting future rounds (those fixtures only appear once teams advance), so the
+# published bracket must be supplied here. Left half (top->bottom), then right half (top->bottom).
+
+# --- Left half ---
+Germany
+Paraguay
+France
+Sweden
+South Africa
+Canada
+Netherlands
+Morocco
+Portugal
+Croatia
+Spain
+Austria
+United States
+Bosnia and Herzegovina
+Belgium
+Senegal
+
+# --- Right half ---
+Brazil
+Japan
+Ivory Coast
+Norway
+Mexico
+Ecuador
+England
+DR Congo
+Argentina
+Cape Verde
+Australia
+Egypt
+Switzerland
+Algeria
+Colombia
+Ghana
