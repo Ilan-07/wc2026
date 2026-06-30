@@ -281,6 +281,27 @@ def load_wc2026_r32_fixtures(path: str | Path | None = None) -> list[tuple[str, 
     return ties if len(ties) == 16 else None
 
 
+def load_wc2026_knockout_fixtures(path: str | Path | None = None) -> list[tuple[str, str]]:
+    """Every WC2026 cross-group (knockout) fixture as ``(home, away)``, in date order.
+
+    Unlike :func:`load_wc2026_r32_fixtures` this keeps the *later* rounds too: after the 16
+    Round-of-32 ties come the Round-of-16, quarter-final, … fixtures as the draw fills in. Each
+    later-round fixture pairs the winners of two earlier ties, so this ordered list is the real
+    advancement chain — the only reliable source for the bracket *tree* (which ties feed which
+    later match), since the published draw need not follow the generic group-letter template.
+    """
+    df = _read_raw(path)
+    wc = df[(df["tournament"] == "FIFA World Cup") & (df["date"].dt.year == 2026)].sort_values("date")
+    groups = load_wc2026_groups(path)
+    group_of = {t: g for g, ts in groups.items() for t in ts}
+    return [
+        (r.home_team, r.away_team)
+        for r in wc.itertuples(index=False)
+        if group_of.get(r.home_team) and group_of.get(r.away_team)
+        and group_of[r.home_team] != group_of[r.away_team]
+    ]
+
+
 def load_shootout_psi(path: str | Path | None = None, prior: float = 4.0) -> dict[str, float]:
     """Per-team penalty-shootout skill psi in [0,1] from historical shootout results.
 

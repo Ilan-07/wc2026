@@ -281,61 +281,61 @@ def _group_standings(
     return order, {t: (pts[t], gd[t], gf[t]) for t in teams}
 
 
-def _align_bracket_to_fixtures(scaffold: list[str], fixtures: list[tuple[str, str]]) -> list[str]:
-    """Snap a 32-team scaffold onto the real ties so every adjacent pair is an official fixture.
+def _bracket_order_from_fixtures(
+    r32_ties: list[tuple[str, str]], later_fixtures: list[tuple[str, str]]
+) -> list[str]:
+    """Order the 32 qualifiers so that tree-folding the result reproduces the *real* bracket.
 
-    Each scaffold slot keeps its tree position; a tie that already sits in a slot stays put, and
-    the rest are filled by the leftover tie that shares the most teams with that slot. The two
-    cover the same 32 teams, so this is a perfect re-pairing. Preserves each tie's home/away order.
+    The downstream tree is built by folding this order in pairs — slots ``(0,1),(2,3),…`` are the
+    Round-of-32 ties, their winners fold into the Round of 16, and so on. So the order alone fixes
+    every later-round pairing, and it must respect the published advancement chain: when a real
+    later-round fixture pairs the winners of two earlier ties, those ties are siblings in the tree
+    and must sit in adjacent blocks here.
+
+    We start with each R32 tie as a 2-team block, then walk the later fixtures in date order:
+    each one merges the (equal-size) blocks holding its two teams, locking that sub-bracket exactly
+    as drawn. Blocks the schedule hasn't connected yet are folded together in chronological order
+    as a stable fallback — and snap to reality automatically as those fixtures are published.
     """
-    by_set = {frozenset(f): f for f in fixtures}
-    remaining = set(by_set)
-    slots = [(scaffold[i], scaffold[i + 1]) for i in range(0, len(scaffold), 2)]
-    chosen: list[tuple[str, str] | None] = [None] * len(slots)
-    for i, (a, b) in enumerate(slots):  # pass 1: ties already in their template slot
-        key = frozenset((a, b))
-        if key in remaining:
-            chosen[i] = by_set[key]
-            remaining.discard(key)
-    for i, (a, b) in enumerate(slots):  # pass 2: best-overlap for the remaining slots
-        if chosen[i] is not None:
-            continue
-        key = max(remaining, key=lambda f, a=a, b=b: len(f & {a, b}))
-        chosen[i] = by_set[key]
-        remaining.discard(key)
-    return [t for pair in chosen for t in pair]  # type: ignore[union-attr]
+    blocks: list[list[str]] = [list(t) for t in r32_ties]
+
+    def block_of(team: str) -> list[str] | None:
+        return next((b for b in blocks if team in b), None)
+
+    for x, y in later_fixtures:  # lock the real tree edges the schedule reveals
+        bx, by = block_of(x), block_of(y)
+        if bx is None or by is None or bx is by or len(bx) != len(by):
+            continue  # a team outside our R32 set, or an edge we can't place as equal siblings
+        blocks.remove(bx)
+        blocks.remove(by)
+        blocks.append(bx + by)
+
+    while len(blocks) > 1:  # fold the rest level by level (two smallest, always equal-size)
+        blocks.sort(key=len)
+        blocks.append(blocks.pop(0) + blocks.pop(0))
+    return blocks[0]
 
 
 def _derive_known_bracket(groups: dict, played: dict) -> list[str] | None:
     """Real Round-of-32 bracket (32 teams in bracket order) from the published fixtures, or None.
 
-    Once the knockout draw is scheduled, ``results.csv`` carries the actual R32 ties. The official
-    slot template can re-derive most of them, but its Annexe-C third allocation does not always
-    match a given edition's published draw — so we take the real ties as ground truth and use the
-    template only as a positional scaffold. Every adjacent pair in the result is a real fixture,
-    placed in the slot it best matches, so the downstream bracket tree stays in official order.
-    Returns None until all 16 ties are scheduled and every group is decided.
-    """
-    from wc2026.simulate.bracket import build_official_bracket
+    Once the knockout draw is scheduled, ``results.csv`` carries the actual R32 ties *and* the
+    later-round fixtures as they fill in. Both the ties and the tree that connects them come
+    straight from that schedule: the generic group-letter template can misplace ties (its
+    Annexe-C third allocation, and even its winner/runner pairings, need not match a given
+    edition's published draw), whereas the advancement chain is ground truth. We hand the real
+    ties and later fixtures to :func:`_bracket_order_from_fixtures`, which orders the 32 teams so
+    that tree-folding reproduces every pairing the schedule has revealed.
 
+    Returns None until all 16 R32 ties are scheduled. (Group standings are no longer needed — the
+    bracket is read entirely from the fixtures, not re-derived from final tables.)
+    """
     fixtures = loaders.load_wc2026_r32_fixtures()
     if not fixtures or len(fixtures) != 16:
         return None
-    winners, runners, thirds, third_record = {}, {}, [], {}
-    for g, ts in groups.items():
-        table = _group_standings(ts, played)
-        if table is None:
-            return None  # a group still in progress -> no reliable scaffold
-        order, records = table
-        winners[g], runners[g] = order[0], order[1]
-        thirds.append((g, order[2]))
-        third_record[g] = records[order[2]]
-    best = dict(sorted(thirds, key=lambda gt: third_record[gt[0]], reverse=True)[:8])
-    try:
-        scaffold = build_official_bracket(winners, runners, best)
-    except Exception:
-        scaffold = [t for f in fixtures for t in f]  # any valid 32; alignment fixes the pairs
-    return _align_bracket_to_fixtures(scaffold, fixtures)
+    r32_sets = {frozenset(f) for f in fixtures}
+    later = [f for f in loaders.load_wc2026_knockout_fixtures() if frozenset(f) not in r32_sets]
+    return _bracket_order_from_fixtures(fixtures, later)
 
 
 def build_payload(teams, groups, matches, champ, market_champ, blended, sd, result,

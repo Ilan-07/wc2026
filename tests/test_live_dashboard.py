@@ -66,16 +66,26 @@ def test_build_app_injects_reload_tag():
     assert "__RELOAD__" not in html                                  # token fully substituted
 
 
-def test_align_bracket_snaps_scaffold_to_real_ties():
-    # Scaffold mis-pairs the two third-placed teams (X/Y); the real ties swap them. Alignment must
-    # keep every adjacent pair a real tie while preserving the slot positions of the exact matches.
-    scaffold = ["A", "X", "B", "Y", "C", "D", "E", "F"]
-    fixtures = [("A", "Y"), ("B", "X"), ("C", "D"), ("E", "F")]
-    out = predict._align_bracket_to_fixtures(scaffold, fixtures)
-    pairs = {frozenset((out[i], out[i + 1])) for i in range(0, len(out), 2)}
-    assert pairs == {frozenset(f) for f in fixtures}                 # every pair is a real tie
-    assert sorted(out) == sorted(scaffold)                           # same 8 teams, no dupes/drops
-    assert (out[4], out[5]) == ("C", "D") and (out[6], out[7]) == ("E", "F")  # exact ties stay put
+def test_bracket_order_locks_known_tree_edges():
+    # Four R32 ties; a later-round fixture pairs the winners of tie 1 (A) and tie 4 (G), so those
+    # two ties must end up as siblings (adjacent blocks) — never folded with their date-neighbours.
+    r32 = [("A", "B"), ("C", "D"), ("E", "F"), ("G", "H")]
+    later = [("A", "G")]                                             # real R16 edge: tie1 vs tie4
+    out = predict._bracket_order_from_fixtures(r32, later)
+    assert sorted(out) == sorted("ABCDEFGH")                         # same 8 teams, no dupes/drops
+    ties = [(out[i], out[i + 1]) for i in range(0, 8, 2)]
+    assert {frozenset(t) for t in ties} == {frozenset(t) for t in r32}  # every R32 pair preserved
+    # round-of-16 folds adjacent ties: ties (0,1) meet, ties (2,3) meet. The A/B and G/H ties must
+    # share an r16 slot so A can meet G as the real fixture dictates.
+    r16_partners = [frozenset(ties[0]) | frozenset(ties[1]), frozenset(ties[2]) | frozenset(ties[3])]
+    assert frozenset("ABGH") in r16_partners
+
+
+def test_bracket_order_falls_back_chronologically_without_edges():
+    # With no later fixtures the ties simply fold in chronological order, two by two.
+    r32 = [("A", "B"), ("C", "D"), ("E", "F"), ("G", "H")]
+    out = predict._bracket_order_from_fixtures(r32, [])
+    assert out == ["A", "B", "C", "D", "E", "F", "G", "H"]
 
 
 def test_derive_known_bracket_matches_published_r32():
