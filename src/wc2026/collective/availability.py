@@ -155,6 +155,93 @@ def general_feed_injury_flags(
     return out
 
 
+# ESPN's dedicated WC2026 injury-tracker article — a curated, per-player list ("Name, Country,
+# Injury: type, description"). Richer than headlines but a single HTML page, so it is parsed from the
+# visible TEXT (name-based), not the tag structure, to survive redesigns. If ESPN rotates the article
+# id, update this URL; a dead URL simply reports 'fetch_failed' (non-fatal — see parse_tracker_text).
+_ESPN_TRACKER_URL = (
+    "https://www.espn.com/soccer/story/_/id/48572979/"
+    "2026-fifa-world-cup-injuries-tracker-which-stars-miss-latest-info"
+)
+# Health strings that mean the scraper likely broke (page redesigned/blocked/JS-only or URL dead), as
+# opposed to 'ok'. The suggester turns any non-'ok' into a loud warning; NONE of them can affect the
+# forecast, which reads only the human-confirmed wc2026_injuries.txt.
+TRACKER_DEGRADED = {"fetch_failed", "degraded_empty", "degraded_format", "degraded_overmatch", "parsed_zero"}
+
+
+def _visible_text(html: str) -> str:
+    """Tag-stripped visible text of an HTML page (scripts/styles removed, whitespace collapsed)."""
+    t = re.sub(r"<script.*?</script>|<style.*?</style>", " ", html, flags=re.S | re.I)
+    t = re.sub(r"<[^>]+>", " ", t)
+    return re.sub(r"\s+", " ", t).strip()
+
+
+def parse_tracker_text(text: str, player_team: dict[str, str]) -> tuple[dict[str, list[tuple[str, str]]], str]:
+    """Parse ESPN-tracker visible text -> ({team: [(player, status)]}, health). Pure & network-free.
+
+    Precision path: each 'Injury: <type>' is attributed to the squad player named in the short window
+    just before it (nearest-name), giving a real status snippet. If that yields nothing on a page that
+    clearly loaded, fall back to flagging any squad player named anywhere in the article (lower
+    precision, health='degraded_format'). Health is 'ok' only on the precision path; every other value
+    is a breakage signal the caller surfaces. Output is always verify-only.
+    """
+    all_players = list(player_team)
+    if not text or len(text) < 800 or "Injury" not in text:
+        return {}, "degraded_empty"  # JS shell / blocked / redesigned away
+    teams = set(player_team.values())
+    by_team: dict[str, list[str]] = {}
+    for pl, tm in player_team.items():
+        by_team.setdefault(tm, []).append(pl)
+
+    # Each entry reads "<Name> , <Country> Injury: <type>". Anchor on that exact shape: the 1–4 word
+    # tokens immediately before ", <Country> Injury:" are the subject, and the country must be a real
+    # team AND the name must be one of THAT team's squad — a double constraint that rejects the player
+    # names ESPN sprinkles through the prose (e.g. "handed Neymar a lifeline" before Gnabry's entry).
+    entry = re.compile(r"([\w'’.\-]+(?:\s+[\w'’.\-]+){0,3})\s*,\s*([\w'’. \-]{3,30}?)\s+Injury:\s*([^.]{2,50})")
+    out: dict[str, list[tuple[str, str]]] = {}
+    seen: set[tuple[str, str]] = set()
+    for m in entry.finditer(text):
+        name_raw, country, typ = m.group(1).strip(), m.group(2).strip(), m.group(3).strip()
+        team = country if country in teams else next(
+            (t for t in teams if country.endswith(t) or t.endswith(country)), None)
+        if team is None:
+            continue  # country label didn't resolve -> prose bleed, not a real entry
+        hits = players_in_text(name_raw, by_team[team])  # must be a squad player of *this* team
+        if not hits:
+            continue
+        player, key = hits[-1], (team, hits[-1])
+        if key in seen:
+            continue
+        seen.add(key)
+        out.setdefault(team, []).append((player, f"[ESPN tracker] Injury: {typ}"))
+    if not out:  # page loaded but the "Name , Country Injury:" shape matched nothing -> format changed
+        for player in players_in_text(text, all_players):
+            out.setdefault(player_team[player], []).append(
+                (player, "[ESPN tracker] named in injury tracker (verify)"))
+        return out, ("degraded_format" if out else "parsed_zero")
+    if sum(len(v) for v in out.values()) > 60:  # implausible for an injury list -> probable mis-parse
+        return out, "degraded_overmatch"
+    return out, "ok"
+
+
+def espn_tracker_flags(
+    squads: dict | None = None, url: str = _ESPN_TRACKER_URL, timeout: float = 15.0
+) -> tuple[dict[str, list[tuple[str, str]]], str]:
+    """Fetch + parse ESPN's injury-tracker article. Fail-soft: never raises, returns ({}, health)."""
+    import urllib.request
+
+    squads = squads if squads is not None else squads_mod.load_squads()
+    player_team = {pl.name: team for team, sq in squads.items() for pl in sq.players}
+    from .sentiment import _ssl_context
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=timeout, context=_ssl_context()) as resp:
+            html = resp.read().decode("utf-8", "ignore")
+    except Exception as e:
+        return {}, f"fetch_failed:{type(e).__name__}"
+    return parse_tracker_text(_visible_text(html), player_team)
+
+
 def news_injury_flags(
     squads: dict | None = None, teams: list[str] | None = None, limit: int = 8
 ) -> dict[str, list[tuple[str, str]]]:
@@ -180,18 +267,33 @@ def suggest_injuries(
     """Write ``wc2026_injuries.suggested.txt`` (suggestions only — confirm into the live file)."""
     squads = squads_mod.load_squads()
     flags = news_injury_flags(squads, teams=teams, limit=limit)
-    for team, fl in general_feed_injury_flags(squads).items():  # ESPN (+ any other shared feeds)
+    for team, fl in general_feed_injury_flags(squads).items():  # ESPN (+ any other shared feeds) RSS
         flags.setdefault(team, []).extend(fl)
+
+    # Tier 2: ESPN's dedicated injury-tracker article (richer per-player status). Fully isolated — a
+    # scraper break contributes zero flags and only raises a warning here; it can never reach the
+    # forecast (which reads wc2026_injuries.txt) nor suppress the other sources above.
+    tracker_flags, tracker_health = espn_tracker_flags(squads)
+    for team, fl in tracker_flags.items():
+        flags.setdefault(team, []).extend(fl)
+    degraded = tracker_health.split(":")[0] in TRACKER_DEGRADED
+    if degraded:
+        import sys
+        print(f"WARNING: ESPN injury-tracker scraper degraded ({tracker_health}); tracker suggestions "
+              "may be incomplete. RSS + Google News + Wikipedia sources are unaffected, and the "
+              "forecast is untouched (it reads only the confirmed wc2026_injuries.txt).", file=sys.stderr)
 
     replaced = wikipedia_replacements()
 
     lines = [
         "# AUTO-SUGGESTED availability — VERIFY before copying confirmed lines into wc2026_injuries.txt.",
-        "# Sources: Google News RSS + ESPN soccer RSS injury headlines + Wikipedia replacement notes",
-        "# (all noisy — a 'returns from injury' headline can false-flag a fit player). Verify each line.",
+        "# Sources: Google News RSS + ESPN soccer RSS + ESPN injury-tracker article + Wikipedia notes",
+        "# (all noisy — a 'returns from injury' line can false-flag a fit player). Verify each line.",
         "# Format matches the live file: 'Team: Player1, Player2'.",
-        "",
     ]
+    lines.append(f"# ESPN injury-tracker scraper: {tracker_health}"
+                 + ("  ⚠ DEGRADED — tracker rows may be missing (other sources unaffected)" if degraded else ""))
+    lines.append("")
     for team, fl in sorted(flags.items()):
         seen_pairs = list(dict.fromkeys(fl))  # dedupe identical (player, headline) across feeds
         players = sorted({p for p, _ in seen_pairs})

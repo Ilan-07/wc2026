@@ -110,6 +110,27 @@ def test_parse_replacements():
     assert reps == list(dict.fromkeys(reps))  # deduped, order preserved
 
 
+def test_parse_tracker_text_attribution():
+    # ESPN-format entries; the Gnabry entry's prose mentions Neymar, who must NOT be flagged.
+    pt = {"Serge Gnabry": "Germany", "Neymar": "Brazil", "Alphonso Davies": "Canada"}
+    text = ("Will miss the World Cup. " + "x" * 900 +  # exceed the <800-char JS-shell guard
+            " Serge Gnabry , Germany Injury: Torn adductor An adductor injury handed Neymar a lifeline. "
+            " Alphonso Davies , Canada Injury: Hamstring Davies has not played since March.")
+    flags, health = av.parse_tracker_text(text, pt)
+    assert health == "ok"
+    assert flags.get("Germany") and flags["Germany"][0][0] == "Serge Gnabry"
+    assert "Canada" in flags
+    assert "Brazil" not in flags  # Neymar is named in prose only, not a "Name, Country Injury:" entry
+
+
+def test_parse_tracker_text_degrades_soft():
+    pt = {"Serge Gnabry": "Germany"}
+    assert av.parse_tracker_text("", pt) == ({}, "degraded_empty")          # empty / JS shell
+    assert av.parse_tracker_text("<div>loading</div>", pt)[1] == "degraded_empty"
+    healthy_no_match = "Will miss the World Cup. Nobody Here , Narnia Injury: Sprain. " + "z" * 900
+    assert av.parse_tracker_text(healthy_no_match, pt)[1] == "parsed_zero"   # loaded but nothing matched
+
+
 # --------------------------------------------------------------- #3 dead-rubber rotation
 def _sim_with_groups(seed=0):
     rng = np.random.default_rng(seed)
