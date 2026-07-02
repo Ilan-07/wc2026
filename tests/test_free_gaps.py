@@ -123,6 +123,24 @@ def test_parse_tracker_text_attribution():
     assert "Brazil" not in flags  # Neymar is named in prose only, not a "Name, Country Injury:" entry
 
 
+def test_form_pulse_reflects_recent_results():
+    from wc2026.collective.sentiment import form_pulse
+    elo = {"Hot": 1600.0, "Cold": 1400.0, "Strong": 1800.0}
+    def game(h, a, hs, as_, d):
+        return {"home_team": h, "away_team": a, "home_score": hs, "away_score": as_, "date": d}
+    matches = [
+        game("Hot", "Strong", 2, 0, "2026-06-01"), game("Strong", "Hot", 0, 1, "2026-06-05"),
+        game("Cold", "Strong", 0, 3, "2026-06-02"), game("Strong", "Cold", 2, 0, "2026-06-06"),
+    ]
+    hot_pulse, hot_mood = form_pulse("Hot", matches, elo)
+    cold_pulse, cold_mood = form_pulse("Cold", matches, elo)
+    assert hot_mood == "positive" and hot_pulse > 60
+    assert cold_mood == "negative" and cold_pulse < 40
+    assert form_pulse("Nobody", matches, elo) == (50.0, "neutral")  # no matches -> par
+    # injuries dampen the mood
+    assert form_pulse("Hot", matches, elo, unavailable=["a", "b", "c"])[0] < hot_pulse
+
+
 def test_parse_tracker_text_degrades_soft():
     pt = {"Serge Gnabry": "Germany"}
     assert av.parse_tracker_text("", pt) == ({}, "degraded_empty")          # empty / JS shell

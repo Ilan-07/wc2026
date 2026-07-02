@@ -100,3 +100,39 @@ def fetch_team_news(team: str, limit: int = 6, timeout: float = 8.0) -> TeamPuls
 def fetch_many(teams: list[str], limit: int = 6) -> dict[str, TeamPulse]:
     """Fetch news for several teams (sequential; small N intended for the dashboard)."""
     return {t: fetch_team_news(t, limit=limit) for t in teams}
+
+
+def form_pulse(
+    team: str, matches: list[dict], elo_ratings: dict[str, float],
+    unavailable: list[str] | tuple = (), k: int = 8, decay: float = 0.8,
+) -> tuple[float, str]:
+    """Recent-form momentum as a (pulse 0-100, mood) pair — the honest replacement for headline-word
+    sentiment, which almost never left neutral (a weak lexicon over descriptive headlines).
+
+    Pulse is the recency-weighted average result over the team's last ``k`` played matches (win +1,
+    draw 0, loss -1), with each match weighted up when the opponent is stronger (results against
+    quality count for more), then mapped 50 ± 40·form; 50 is par. A small injury dampener nudges it
+    down for currently-unavailable players. Display only — never enters the forecast.
+    """
+    mean_elo = (sum(elo_ratings.values()) / len(elo_ratings)) if elo_ratings else 1500.0
+    played = [m for m in matches
+              if team in (m["home_team"], m["away_team"]) and m.get("home_score") is not None]
+    played.sort(key=lambda m: m["date"], reverse=True)
+    played = played[:k]
+    if not played:
+        return 50.0, "neutral"
+    num = den = 0.0
+    for i, m in enumerate(played):
+        home = m["home_team"] == team
+        gf, ga = (m["home_score"], m["away_score"]) if home else (m["away_score"], m["home_score"])
+        res = 1.0 if gf > ga else (-1.0 if ga > gf else 0.0)
+        opp = m["away_team"] if home else m["home_team"]
+        opp_w = min(1.4, max(0.6, 1.0 + (elo_ratings.get(opp, mean_elo) - mean_elo) / 600.0))
+        w = (decay ** i) * opp_w
+        num += w * res
+        den += w
+    form = num / den if den else 0.0  # -1 (cold) .. +1 (hot)
+    pulse = 50.0 + 40.0 * form - min(15.0, 5.0 * len(unavailable))  # injuries dampen the mood
+    pulse = max(0.0, min(100.0, pulse))
+    mood = "positive" if pulse >= 60 else "negative" if pulse <= 40 else "neutral"
+    return round(pulse, 1), mood

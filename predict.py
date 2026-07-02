@@ -536,9 +536,15 @@ def build_payload(teams, groups, matches, champ, market_champ, blended, sd, resu
 
     dv = sorted(teams, key=lambda t: market_champ[t] - champ[t], reverse=True)
     mk = lambda t: {"team": t, "market": market_champ[t], "model": champ[t], "div": market_champ[t] - champ[t]}
-    news_payload = [{"team": tp.team, "pulse": tp.pulse, "mood": tp.mood,
-                     "items": [{"title": it.title, "source": it.source, "link": it.link} for it in tp.items]}
-                    for tp in news.values()]
+    # Pulse = recent-form momentum (results-based), not headline-word sentiment — the lexicon score
+    # almost never left neutral. Computed here where matches + Elo + injuries are in scope. Display only.
+    from wc2026.collective.sentiment import form_pulse
+    news_payload = []
+    for tp in news.values():
+        pulse, mood = form_pulse(tp.team, matches, elo.ratings, avail.get(tp.team, []))
+        news_payload.append({"team": tp.team, "pulse": pulse, "mood": mood,
+                             "items": [{"title": it.title, "source": it.source, "link": it.link}
+                                       for it in tp.items]})
     # unified "latest" stream across all teams (deduped) — the flowing feed
     latest, seen = [], set()
     for tp in news.values():

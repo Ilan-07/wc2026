@@ -306,9 +306,11 @@ footer{padding:34px 0 70px;color:var(--mut);font-size:12px;max-width:74ch}
  </section>
 
  <section id="pulse">
-  <div class="h2"><span class="n">06</span> News Pulse <span class="badge" style="align-self:center">display only — not in the forecast</span></div>
-  <p class="note">Live headlines pulled from Google News at generation time (re-run <span class="mono">predict</span> to
-   refresh). The latest stream is below; per-team mood cards follow. Deliberately excluded from the math.</p>
+  <div class="h2"><span class="n">06</span> Form Pulse &amp; News <span class="badge" style="align-self:center">display only — not in the forecast</span></div>
+  <p class="note"><b>Pulse</b> is each team's recent-form momentum — the recency- and opponent-weighted result of its
+   last ~8 matches on a 0–100 scale, where 50 is par (<span style="color:var(--green)">green</span> hot,
+   <span style="color:var(--red)">red</span> cold), nudged down for injuries. Live headlines from Google News follow.
+   Both are display only — deliberately excluded from the math.</p>
   <h3 style="font-family:var(--display);font-weight:600;font-size:16px;margin:0 0 10px">Latest across all teams</h3>
   <div class="latest" id="latestEl"></div>
   <h3 style="font-family:var(--display);font-weight:600;font-size:16px;margin:8px 0 10px">By team</h3>
