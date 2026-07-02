@@ -30,3 +30,6 @@ logs/
 
 # local publish clone (mirror of the public wc2026-live repo)
 .publish/
+
+# Auto-generated verify-only injury suggestions (rewritten daily by the availability suggester).
+data/raw/wc2026_injuries.suggested.txt
