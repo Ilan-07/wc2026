@@ -201,9 +201,11 @@ def test_wc2026_draw_reconstructs_to_12_groups_of_4():
     assert all(len(v) == 4 for v in groups.values())
     teams = [t for g in groups.values() for t in g]
     assert len(teams) == len(set(teams)) == 48
-    # spot-check a couple of known 2026 placements
-    assert "Argentina" in groups["J"]
-    assert "Spain" in groups["H"]
+    # spot-check known 2026 placements by co-location (group *letters* are assigned by kickoff
+    # date, so they drift as fixtures update; the draw itself — who shares a group — does not).
+    group_of = {t: g for g, ts in groups.items() for t in ts}
+    assert group_of["Argentina"] == group_of["Austria"]
+    assert group_of["Spain"] == group_of["Uruguay"]
 
 
 _SQUADS = Path(__file__).resolve().parents[1] / "data" / "raw" / "wc2026_squads.json"

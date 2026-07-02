@@ -189,14 +189,17 @@ def load_wc2026_knockout_results(path: str | Path | None = None) -> dict[frozens
     """Played WC2026 *knockout* results as {frozenset({a, b}): winner}, for KO conditioning.
 
     A knockout match is a 2026 FIFA World Cup fixture between teams from different groups. The
-    winner comes from the score, or from ``shootouts.csv`` when the match was a draw after extra
-    time. Empty until the knockout stage is played; populates as ``results.csv`` is re-fetched.
+    winner comes from the score, from ``shootouts.csv`` when the match was a draw after extra
+    time, or — failing both — from the advancement chain (see below). Empty until the knockout
+    stage is played; populates as ``results.csv`` is re-fetched.
     """
     df = _read_raw(path)
-    wc = df[(df["tournament"] == "FIFA World Cup") & (df["date"].dt.year == 2026)]
-    wc = wc.dropna(subset=["home_score", "away_score"])
+    wc = df[(df["tournament"] == "FIFA World Cup") & (df["date"].dt.year == 2026)].sort_values("date")
     groups = load_wc2026_groups(path)
     group_of = {t: g for g, ts in groups.items() for t in ts}
+
+    def is_ko(h, a) -> bool:  # a cross-group (knockout) tie
+        return group_of.get(h) is not None and group_of.get(a) is not None and group_of[h] != group_of[a]
 
     # shootout winners keyed by (date, home, away)
     sp = (Path(path).parent if path else DEFAULT_RESULTS.parent) / "shootouts.csv"
@@ -206,19 +209,40 @@ def load_wc2026_knockout_results(path: str | Path | None = None) -> dict[frozens
         for r in sh.itertuples(index=False):
             shootouts[(str(r.date), r.home_team, r.away_team)] = r.winner
 
+    # every SCHEDULED knockout fixture (incl. unplayed), date-ordered — the advancement chain: a team
+    # appearing in a later-round tie has, by scheduling, already won its earlier one.
+    schedule = [(r.date, r.home_team, r.away_team)
+                for r in wc.itertuples(index=False) if is_ko(r.home_team, r.away_team)]
+
+    # PLAYED knockout fixtures only (real scores) — for deciding a tie by scoreline / shootout.
+    played = wc.dropna(subset=["home_score", "away_score"])
+    ko = [(r.date, r.home_team, r.away_team, int(r.home_score), int(r.away_score))
+          for r in played.itertuples(index=False) if is_ko(r.home_team, r.away_team)]
+
     out: dict[frozenset, str] = {}
-    for r in wc.itertuples(index=False):
-        h, a = r.home_team, r.away_team
-        if group_of.get(h) is not None and group_of.get(a) is not None and group_of[h] != group_of[a]:
-            hs, as_ = int(r.home_score), int(r.away_score)
-            if hs > as_:
-                w = h
-            elif as_ > hs:
-                w = a
-            else:
-                w = shootouts.get((str(r.date.date()), h, a)) or shootouts.get((str(r.date.date()), a, h))
-            if w:
-                out[frozenset((h, a))] = w
+    undecided: list[tuple] = []  # (date, home, away) — level, no recorded shootout
+    for d, h, a, hs, as_ in ko:
+        if hs > as_:
+            w = h
+        elif as_ > hs:
+            w = a
+        else:
+            w = shootouts.get((str(d.date()), h, a)) or shootouts.get((str(d.date()), a, h))
+        if w:
+            out[frozenset((h, a))] = w
+        else:
+            undecided.append((d, h, a))
+
+    # Advancement-chain fallback: a tie that finished level with no recorded shootout is still
+    # decided by the schedule — the team that reappears in a LATER knockout fixture is the one that
+    # advanced (the loser is eliminated). ``shootouts.csv`` is a separately fetched feed that can lag
+    # the results feed, so without this the bracket would silently revert a real result to a coin-flip
+    # probability the moment the data is refreshed.
+    for d, h, a in undecided:
+        later_teams = {t for dd, hh, aa in schedule if dd > d for t in (hh, aa)}
+        h_adv, a_adv = h in later_teams, a in later_teams
+        if h_adv ^ a_adv:  # exactly one reappears -> unambiguous winner
+            out[frozenset((h, a))] = h if h_adv else a
     return out
 
 

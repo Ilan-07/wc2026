@@ -440,7 +440,7 @@ def build_payload(teams, groups, matches, champ, market_champ, blended, sd, resu
     # can't tell first from second, or even mistake a qualifier for the third). Knockout advancement
     # then uses the BLENDED (market-anchored) title probability, NOT the raw model champ% — the latter
     # double-counts path luck and lets easy-route minnows leapfrog far stronger teams.
-    q = result.reach_prob["r16"]
+    q = result.reach_prob["r32"]  # reached the knockout = qualified from group (top-2 / best third)
     border = None
     if known_bracket and len(known_bracket) == 32:
         border = list(known_bracket)  # real, published R32 fixtures — use them exactly
