@@ -422,7 +422,10 @@ D.groups.forEach(g=>{
  const card=el('<div class="gcard"><div class="gh"><span class="gb">'+g.group+'</span>Group '+g.group+' <small>pre-kickoff call · Q = qualified</small></div></div>');
  const maxq=Math.max(...g.teams.map(t=>t.qualify),1e-6);
  g.teams.forEach(t=>{
-  const q=(t.qualified!=null?t.qualified:false)||t.qualify>=0.5;  // reached the knockout stage
+  // Q = ACTUALLY qualified (reached the knockout). The number is the model's pre-kickoff probability,
+  // so it must NOT drive the marker — otherwise a strong group where every team was rated >50% shows
+  // four Q's. Fall back to the probability only for older payloads without the flag.
+  const q=(t.qualified!=null)?!!t.qualified:(t.qualify>=0.5);
   const row=el('<div class="gt '+(q?'adv':'out')+'"><span class="tn"><span class="qbar" style="width:'+Math.round(26*t.qualify/maxq)+'px"></span>'+t.team+(q?' <span class="qmark">Q</span>':'')+'</span><span class="q">'+pctv(t.qualify)+'</span></div>');
   row.addEventListener('click',()=>openTeam(t.team));
   card.appendChild(row);
