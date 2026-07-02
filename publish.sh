@@ -18,6 +18,10 @@ fi
 
 cp "$SRC" "$PUB/index.html"
 [ -f data/processed/track_record.json ] && cp data/processed/track_record.json "$PUB/track-record.json"
+# Disable Jekyll: the dashboard is pre-built static HTML, and its CSS/JS/news text can contain tokens
+# Jekyll's Liquid parser rejects (e.g. "100%}" in CSS, or "{%"/"%}" in a headline), which fails the
+# Pages build. .nojekyll serves the files verbatim and immunises every future publish.
+[ -f "$PUB/.nojekyll" ] || : > "$PUB/.nojekyll"
 
 if [ ! -f "$PUB/README.md" ]; then
   cat > "$PUB/README.md" <<'MD'
@@ -27,7 +31,7 @@ Auto-published from the gh-pages branch of https://github.com/Ilan-07/wc2026. No
 MD
 fi
 
-git -C "$PUB" add index.html track-record.json README.md 2>/dev/null || git -C "$PUB" add index.html README.md
+git -C "$PUB" add index.html track-record.json README.md .nojekyll 2>/dev/null || git -C "$PUB" add index.html README.md .nojekyll
 if git -C "$PUB" diff --cached --quiet; then
   echo "publish: no change to publish"
   exit 0
