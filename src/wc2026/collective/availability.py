@@ -111,6 +111,50 @@ def wikipedia_replacements(path: str | Path | None = None) -> list[str]:
     return parse_replacements(_squads_wikitext(path))
 
 
+# Free, unauthenticated sports-news RSS feeds scanned in addition to the per-team Google-News search.
+# These are single feeds covering many teams (unlike the per-team Google query), so their headlines
+# are matched against EVERY squad player and mapped back to the player's team. ESPN relays national-
+# team withdrawal/availability news (federation + coach announcements), which is exactly the signal
+# the results-only model lacks. Add more (Sky, BBC, Guardian) here — same parser, no keys, no cost.
+_GENERAL_FEEDS: list[tuple[str, str]] = [
+    ("ESPN", "https://www.espn.com/espn/rss/soccer/news"),
+]
+
+
+def _fetch_rss_titles(url: str, limit: int = 40, timeout: float = 8.0) -> list[str]:
+    """Headline titles from a public RSS feed (network). Returns [] on any failure (offline/blocked)."""
+    import urllib.request
+    import xml.etree.ElementTree as ET
+
+    from .sentiment import _ssl_context
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=timeout, context=_ssl_context()) as resp:
+            root = ET.fromstring(resp.read())
+    except Exception:
+        return []
+    return [(item.findtext("title") or "").strip() for item in list(root.iter("item"))[:limit]]
+
+
+def general_feed_injury_flags(
+    squads: dict | None = None, feeds: list[tuple[str, str]] | None = None, limit: int = 40
+) -> dict[str, list[tuple[str, str]]]:
+    """{team: [(player, '[Source] headline')]} from shared RSS feeds (e.g. ESPN).
+
+    Each feed's headlines are scanned against *all* squad players (via ``scan_headlines``) and the
+    flagged player is mapped back to their national team. Purely additive to the Google-News flags;
+    output stays verify-only. Network-free logic lives in the pure parsers above."""
+    squads = squads if squads is not None else squads_mod.load_squads()
+    feeds = feeds if feeds is not None else _GENERAL_FEEDS
+    player_team = {pl.name: team for team, sq in squads.items() for pl in sq.players}
+    all_players = list(player_team)
+    out: dict[str, list[tuple[str, str]]] = {}
+    for source, url in feeds:
+        for player, headline in scan_headlines(_fetch_rss_titles(url, limit=limit), all_players):
+            out.setdefault(player_team[player], []).append((player, f"[{source}] {headline}"))
+    return out
+
+
 def news_injury_flags(
     squads: dict | None = None, teams: list[str] | None = None, limit: int = 8
 ) -> dict[str, list[tuple[str, str]]]:
@@ -136,18 +180,23 @@ def suggest_injuries(
     """Write ``wc2026_injuries.suggested.txt`` (suggestions only — confirm into the live file)."""
     squads = squads_mod.load_squads()
     flags = news_injury_flags(squads, teams=teams, limit=limit)
+    for team, fl in general_feed_injury_flags(squads).items():  # ESPN (+ any other shared feeds)
+        flags.setdefault(team, []).extend(fl)
+
     replaced = wikipedia_replacements()
 
     lines = [
         "# AUTO-SUGGESTED availability — VERIFY before copying confirmed lines into wc2026_injuries.txt.",
-        "# Sources: Google News RSS injury headlines + Wikipedia replacement notes (both noisy).",
+        "# Sources: Google News RSS + ESPN soccer RSS injury headlines + Wikipedia replacement notes",
+        "# (all noisy — a 'returns from injury' headline can false-flag a fit player). Verify each line.",
         "# Format matches the live file: 'Team: Player1, Player2'.",
         "",
     ]
     for team, fl in sorted(flags.items()):
-        players = sorted({p for p, _ in fl})
+        seen_pairs = list(dict.fromkeys(fl))  # dedupe identical (player, headline) across feeds
+        players = sorted({p for p, _ in seen_pairs})
         lines.append(f"{team}: {', '.join(players)}")
-        for p, headline in fl:
+        for p, headline in seen_pairs:
             lines.append(f"#   {p} <- {headline[:90]}")
     if replaced:
         lines.append("")

@@ -35,6 +35,22 @@ else
   echo "[$ts] FAILED (see logs/daily_${ts}.log)" >> logs/heartbeat.log
 fi
 
+# --- Injury suggestions: refresh the verify-only suggestion file at most ONCE per day. This never
+# touches the forecast (predict reads only the human-confirmed wc2026_injuries.txt); it just keeps
+# data/raw/wc2026_injuries.suggested.txt current from the free ESPN + Google-News RSS feeds so a human
+# can confirm real absences into the live file.
+sugg="data/raw/wc2026_injuries.suggested.txt"
+if [ ! -f "$sugg" ] || [ "$(date -r "$sugg" +%Y-%m-%d 2>/dev/null)" != "$(date +%Y-%m-%d)" ]; then
+  ilog="logs/.injuries_${ts}.log"
+  if PYTHONPATH=src "$PY" cli.py injuries >"$ilog" 2>&1; then
+    echo "[$ts] refreshed injury suggestions -> $sugg" >> logs/heartbeat.log
+    rm -f "$ilog"
+  else
+    mv "$ilog" "logs/injuries_${ts}.log"
+    echo "[$ts] injury refresh FAILED (see logs/injuries_${ts}.log)" >> logs/heartbeat.log
+  fi
+fi
+
 # Keep the 30 most recent full re-fit logs; cap the heartbeat log at its last 500 lines.
 ls -1t logs/daily_*.log 2>/dev/null | tail -n +31 | xargs -I{} rm -f {} 2>/dev/null || true
 tail -n 500 logs/heartbeat.log 2>/dev/null > logs/heartbeat.log.tmp 2>/dev/null && mv logs/heartbeat.log.tmp logs/heartbeat.log || true
