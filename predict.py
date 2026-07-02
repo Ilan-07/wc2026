@@ -33,6 +33,8 @@ from wc2026.simulate.tournament import TournamentSimulator
 RESULTS_URL = "https://raw.githubusercontent.com/martj42/international_results/master/results.csv"
 ARCHIVE = Path("data/processed/forecasts")
 DASHBOARD = Path("data/processed/wc2026_dashboard.html")
+KICKOFF = dt.date(2026, 6, 11)  # first WC2026 group match — the freeze line for the pre-tournament call
+PRETOURNEY_QUALIFY = Path("data/processed/pretournament_group_qualify.json")  # cached frozen forecast
 # Title-odds blend weight on the model (rest on the de-vigged market). The one validation we have —
 # `cli.py validate` on 787 held-out top-5 club matches — learns an optimal model weight of **0.00**:
 # against a sharp market the model adds nothing. We can't fit this on internationals (no historical
@@ -243,6 +245,28 @@ def build_match_model(matches, *, bayesian: bool = True, n_boot: int = 15,
     return _member(base_params, _load_xg_blend(before=xg_before))
 
 
+def pretournament_group_qualify(groups: dict, *, bayesian: bool = True, n_boot: int = 15,
+                                n_sims: int = 10_000) -> dict[str, float]:
+    """The model's **pre-kickoff** P(qualify from group) per team — the frozen, leakage-free forecast
+    the group cards grade with a Q. The production match model is fit on data *before* the June 11
+    kickoff (xG blend out-of-sample too) and the group stage is simulated with no results conditioned
+    in, so this is what the model genuinely predicted before a ball was kicked. It never changes once
+    the tournament starts, so it is computed once and cached to disk (deterministic, seed-fixed)."""
+    teams = [t for g in groups.values() for t in g]
+    if PRETOURNEY_QUALIFY.exists():
+        cached = json.loads(PRETOURNEY_QUALIFY.read_text())
+        if all(t in cached for t in teams):
+            return cached
+    matches = loaders.load_results(since="2014-01-01", min_team_matches=20, keep_teams=set(teams))
+    frozen = [m for m in matches if m["date"] < KICKOFF]
+    model = build_match_model(frozen, bayesian=bayesian, n_boot=n_boot, xg_before=KICKOFF.isoformat())
+    sim = TournamentSimulator(model, groups, psi=loaders.load_shootout_psi())
+    qp = {t: float(p) for t, p in sim.run(n_sims=n_sims, seed=0).reach_prob["r32"].items()}
+    PRETOURNEY_QUALIFY.parent.mkdir(parents=True, exist_ok=True)
+    PRETOURNEY_QUALIFY.write_text(json.dumps(qp, indent=0))
+    return qp
+
+
 def _group_standings(
     teams: list[str], played: dict
 ) -> tuple[list[str], dict[str, tuple[int, int, int]]] | None:
@@ -353,7 +377,7 @@ def _derive_known_bracket(groups: dict, played: dict) -> list[str] | None:
 
 def build_payload(teams, groups, matches, champ, market_champ, blended, sd, result,
                   avail, n_sims, bayesian, played, news, pick, p_pick, score_model=None,
-                  psi=None, shootout_model=None, known_bracket=None) -> dict:
+                  psi=None, shootout_model=None, known_bracket=None, pretourney_q=None) -> dict:
     """Assemble the full data object the interactive dashboard renders from.
 
     ``score_model`` is the central match model used to attach a predicted scoreline to every
@@ -487,18 +511,19 @@ def build_payload(teams, groups, matches, champ, market_champ, blended, sd, resu
             nxt.append(a if wa else b)
         rounds.append(nd); alive = nxt
 
-    # groups view: order each group by its ACTUAL final table once decided (points, then goal
-    # difference, then goals scored) — the same order a played-conditioned simulation reproduces —
-    # falling back to the model-blend qualification probability while a group is still live. Every
-    # team that qualified (top-2 or a best third that reached the Round of 32) is flagged so the UI
-    # can mark it with a Q, independent of row position.
+    # groups view: order each group by the MODEL'S pre-kickoff prediction (its frozen, leakage-free
+    # probability of qualifying) and mark every team that ACTUALLY qualified with a Q — so the card
+    # reads as "this is how the model rated them, here's who really went through". The shown number is
+    # that pre-tournament P(qualify). Falls back to the live conditioned probability if the frozen
+    # forecast is unavailable. ``qualified`` = reached the Round of 32 (top-2 or a best third).
     qualified_set = set(border)
+    rank_q = pretourney_q if pretourney_q else q
     groups_payload = []
     for g in sorted(groups):
-        table = _group_standings(groups[g], played)
-        order = table[0] if table else sorted(groups[g], key=lambda t: q[t], reverse=True)
+        order = sorted(groups[g], key=lambda t: rank_q.get(t, 0.0), reverse=True)
         groups_payload.append({"group": g, "teams": [
-            {"team": t, "qualify": float(q[t]), "qualified": t in qualified_set} for t in order]})
+            {"team": t, "qualify": float(rank_q.get(t, 0.0)), "qualified": t in qualified_set}
+            for t in order]})
 
     dv = sorted(teams, key=lambda t: market_champ[t] - champ[t], reverse=True)
     mk = lambda t: {"team": t, "market": market_champ[t], "model": champ[t], "div": market_champ[t] - champ[t]}
@@ -684,11 +709,20 @@ def main(n_sims: int = 30_000, n_boot: int = 15, refresh: bool = False,
     from wc2026.collective import social
     social_pulse = social.fetch_many(top, limit=5)
 
+    # The model's frozen pre-kickoff group forecast — orders the group cards and is graded by the Q
+    # markers. Cached, so this is a cheap load after the first run.
+    try:
+        pretourney_q = pretournament_group_qualify(groups, bayesian=bayesian, n_boot=n_boot)
+    except Exception as e:
+        print(f"  pre-tournament group forecast unavailable ({type(e).__name__}: {e}); "
+              "ordering groups by the live projection.")
+        pretourney_q = None
+
     data = build_payload(
         teams, groups, matches, champ, market_champ, blended, sd, result,
         bool(avail) and avail or {}, n_sims, bayesian, played, news, pick, p_pick,
         score_model=score_model, psi=psi, shootout_model=shootout_model,
-        known_bracket=known_bracket,
+        known_bracket=known_bracket, pretourney_q=pretourney_q,
     )
 
     # Console preview of the per-match scorelines (the dashboard shows the full section).

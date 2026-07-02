@@ -268,8 +268,10 @@ footer{padding:34px 0 70px;color:var(--mut);font-size:12px;max-width:74ch}
 
  <section id="groups">
   <div class="h2"><span class="n">02</span> The draw</div>
-  <p class="note">All 12 groups. Each team's number is its simulated chance of reaching the knockout
-   (finishing top-2); the top two are highlighted. Click a team for its reasoning.</p>
+  <p class="note">All 12 groups, ordered by the model's <b>pre-kickoff</b> forecast — each team's number is the
+   probability it qualified, frozen before a ball was kicked. A <span class="qmark">Q</span> marks every team that
+   <b>actually</b> qualified, so you can see how the call held up: a Q on a low-ranked team means the model under-rated
+   them; a top row with no Q means it over-rated them. Click a team for its reasoning.</p>
   <div class="groups" id="groupsEl"></div>
  </section>
 
@@ -410,7 +412,7 @@ document.getElementById('search').addEventListener('input',e=>{
 // groups
 const gel=document.getElementById('groupsEl');
 D.groups.forEach(g=>{
- const card=el('<div class="gcard"><div class="gh"><span class="gb">'+g.group+'</span>Group '+g.group+' <small>qualify%</small></div></div>');
+ const card=el('<div class="gcard"><div class="gh"><span class="gb">'+g.group+'</span>Group '+g.group+' <small>pre-kickoff call · Q = qualified</small></div></div>');
  const maxq=Math.max(...g.teams.map(t=>t.qualify),1e-6);
  g.teams.forEach(t=>{
   const q=(t.qualified!=null?t.qualified:false)||t.qualify>=0.5;  // reached the knockout stage
