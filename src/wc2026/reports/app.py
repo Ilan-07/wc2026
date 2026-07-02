@@ -132,6 +132,7 @@ section{padding:48px 0;border-bottom:1px solid var(--line)}
 .gt .q{font-family:var(--mono);font-size:10.5px;color:var(--teal)}
 .gt.out .q{color:var(--mut)}
 .gt .qbar{height:5px;border-radius:3px;background:var(--teal);opacity:.5}
+.gt .qmark{font-family:var(--mono);font-size:9px;font-weight:700;color:#04120f;background:var(--teal);border-radius:3px;padding:0 3.5px;line-height:1.5}
 /* scores — predicted / locked match scorelines */
 .scores{display:grid;grid-template-columns:repeat(auto-fill,minmax(252px,1fr));gap:13px}
 .scard{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 15px}
@@ -411,8 +412,9 @@ const gel=document.getElementById('groupsEl');
 D.groups.forEach(g=>{
  const card=el('<div class="gcard"><div class="gh"><span class="gb">'+g.group+'</span>Group '+g.group+' <small>qualify%</small></div></div>');
  const maxq=Math.max(...g.teams.map(t=>t.qualify),1e-6);
- g.teams.forEach((t,i)=>{
-  const row=el('<div class="gt '+(i<2?'adv':'out')+'"><span class="tn"><span class="qbar" style="width:'+Math.round(26*t.qualify/maxq)+'px"></span>'+t.team+'</span><span class="q">'+pctv(t.qualify)+'</span></div>');
+ g.teams.forEach(t=>{
+  const q=(t.qualified!=null?t.qualified:false)||t.qualify>=0.5;  // reached the knockout stage
+  const row=el('<div class="gt '+(q?'adv':'out')+'"><span class="tn"><span class="qbar" style="width:'+Math.round(26*t.qualify/maxq)+'px"></span>'+t.team+(q?' <span class="qmark">Q</span>':'')+'</span><span class="q">'+pctv(t.qualify)+'</span></div>');
   row.addEventListener('click',()=>openTeam(t.team));
   card.appendChild(row);
  });

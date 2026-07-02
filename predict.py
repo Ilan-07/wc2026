@@ -487,11 +487,18 @@ def build_payload(teams, groups, matches, champ, market_champ, blended, sd, resu
             nxt.append(a if wa else b)
         rounds.append(nd); alive = nxt
 
-    # groups view: each group's teams ranked by qualification probability
-    groups_payload = [{"group": g,
-                       "teams": [{"team": t, "qualify": float(q[t])}
-                                 for t in sorted(groups[g], key=lambda t: q[t], reverse=True)]}
-                      for g in sorted(groups)]
+    # groups view: order each group by its ACTUAL final table once decided (points, then goal
+    # difference, then goals scored) — the same order a played-conditioned simulation reproduces —
+    # falling back to the model-blend qualification probability while a group is still live. Every
+    # team that qualified (top-2 or a best third that reached the Round of 32) is flagged so the UI
+    # can mark it with a Q, independent of row position.
+    qualified_set = set(border)
+    groups_payload = []
+    for g in sorted(groups):
+        table = _group_standings(groups[g], played)
+        order = table[0] if table else sorted(groups[g], key=lambda t: q[t], reverse=True)
+        groups_payload.append({"group": g, "teams": [
+            {"team": t, "qualify": float(q[t]), "qualified": t in qualified_set} for t in order]})
 
     dv = sorted(teams, key=lambda t: market_champ[t] - champ[t], reverse=True)
     mk = lambda t: {"team": t, "market": market_champ[t], "model": champ[t], "div": market_champ[t] - champ[t]}
