@@ -61,6 +61,13 @@ class FixtureScore:
     round_name: str = ""
     advance_home: float | None = None
     advance_away: float | None = None
+    # The frozen pre-kickoff model's PRE-match call (populated for played fixtures only), so the
+    # dashboard can show what the model predicted before the game next to what actually happened.
+    pre_home: float | None = None
+    pre_draw: float | None = None
+    pre_away: float | None = None
+    pre_advance_home: float | None = None
+    pre_advance_away: float | None = None
 
     def to_dict(self) -> dict:
         """JSON-serialisable payload for the dashboard renderer."""
@@ -75,6 +82,13 @@ class FixtureScore:
         if self.advance_home is not None:
             d["adH"] = round(self.advance_home, 4)
             d["adA"] = round(self.advance_away if self.advance_away is not None else 0.0, 4)
+        if self.pre_home is not None:  # pre-match receipt for a played fixture
+            d["preH"] = round(self.pre_home, 4)
+            d["preD"] = round(self.pre_draw or 0.0, 4)
+            d["preA"] = round(self.pre_away or 0.0, 4)
+        if self.pre_advance_home is not None:
+            d["preAdH"] = round(self.pre_advance_home, 4)
+            d["preAdA"] = round(self.pre_advance_away if self.pre_advance_away is not None else 0.0, 4)
         return d
 
 
@@ -160,6 +174,20 @@ def _played_fixture(home, away, gh, ga, *, knockout=False, date="", group="",
                         ph, pd, pa, date, group, stage, round_name, adv_h, adv_a)
 
 
+def _attach_pre(fs: FixtureScore, pre_model, home, away, hosts, *, knockout: bool,
+                extra_home: float = 0.0, psi=None, shootout_model=None) -> FixtureScore:
+    """Attach the frozen pre-kickoff model's PRE-match probabilities to a played fixture, so the
+    dashboard can show the model's call beside the real result. No-op when ``pre_model`` is None."""
+    if pre_model is None:
+        return fs
+    pf = score_fixture(pre_model, home, away, hosts, extra_home=extra_home, knockout=knockout,
+                       psi=psi, shootout_model=shootout_model)
+    fs.pre_home, fs.pre_draw, fs.pre_away = pf.p_home, pf.p_draw, pf.p_away
+    if knockout:
+        fs.pre_advance_home, fs.pre_advance_away = pf.advance_home, pf.advance_away
+    return fs
+
+
 def _group_extra(home: str, away: str, venue_alt, fatigue, alt_k: float = ALT_PER_1000M) -> float:
     """Home-oriented altitude (+ optional fatigue) log-rate delta for the LISTED home team,
     matching ``TournamentSimulator._extra``. Returns 0.0 when no covariate applies to this fixture."""
@@ -187,22 +215,25 @@ def build_group_scores(
     venue_alt: dict[frozenset, int] | None = None,
     fatigue: dict[frozenset, dict] | None = None,
     alt_k: float = ALT_PER_1000M,
+    pre_model: MatchModel | None = None,
 ) -> list[FixtureScore]:
     """Score every group fixture. ``fixtures`` is ``(date, home, away, city)`` (chronological);
     ``played`` locks already-played games; ``venue_alt``/``fatigue`` apply the same per-fixture
-    log-rate shifts the simulator uses (pass exactly what the live forecast passes)."""
+    log-rate shifts the simulator uses (pass exactly what the live forecast passes). ``pre_model``
+    (the frozen pre-kickoff model) attaches each played fixture's pre-match call for the receipt."""
     group_of = {t: g for g, ts in groups.items() for t in ts}
     out: list[FixtureScore] = []
     for date, home, away, _ in fixtures:
         g = group_of.get(home, "")
         ds = str(date)[:10] if date is not None else ""  # "2026-06-11 00:00:00" -> "2026-06-11"
+        extra = _group_extra(home, away, venue_alt, fatigue, alt_k)
         real = played.get(frozenset((home, away)))
         if real is not None:
             hteam, hs, as_ = real
             gh, ga = (hs, as_) if hteam == home else (as_, hs)
-            out.append(_played_fixture(home, away, gh, ga, date=ds, group=g))
+            fs = _played_fixture(home, away, gh, ga, date=ds, group=g)
+            out.append(_attach_pre(fs, pre_model, home, away, hosts, knockout=False, extra_home=extra))
         else:
-            extra = _group_extra(home, away, venue_alt, fatigue, alt_k)
             out.append(score_fixture(model, home, away, hosts, extra_home=extra, date=ds, group=g))
     return out
 
@@ -214,13 +245,18 @@ def build_knockout_scores(
     hosts: set[str] = HOST_TEAMS,
     psi=None,
     shootout_model=None,
+    pre_model: MatchModel | None = None,
+    ko_winners: dict[frozenset, str] | None = None,
 ) -> list[FixtureScore]:
     """Round-of-32 scorelines from a known 32-team bracket (pairs are bracket[2i], bracket[2i+1]).
     Returns ``[]`` until the bracket is set. Already-played ties are locked to their real score;
-    upcoming ties carry an advancement probability (regulation + ET + shootout)."""
+    upcoming ties carry an advancement probability (regulation + ET + shootout). ``pre_model`` adds
+    each played tie's pre-match advance call for the receipt; ``ko_winners`` names the side that went
+    through, so a tie level after 90' (settled on penalties) still records its advancer."""
     if not bracket or len(bracket) != 32:
         return []
     played_ko = played_ko or {}
+    ko_winners = ko_winners or {}
     out: list[FixtureScore] = []
     for i in range(0, 32, 2):
         home, away = bracket[i], bracket[i + 1]
@@ -228,8 +264,14 @@ def build_knockout_scores(
         if real is not None:
             hteam, hs, as_ = real
             gh, ga = (hs, as_) if hteam == home else (as_, hs)
-            out.append(_played_fixture(home, away, gh, ga, knockout=True,
-                                       stage="r32", round_name="Round of 32"))
+            fs = _played_fixture(home, away, gh, ga, knockout=True,
+                                 stage="r32", round_name="Round of 32")
+            if fs.advance_home is None:  # level after 90' — take the advancer from the shootout result
+                w = ko_winners.get(frozenset((home, away)))
+                if w:
+                    fs.advance_home, fs.advance_away = (1.0, 0.0) if w == home else (0.0, 1.0)
+            out.append(_attach_pre(fs, pre_model, home, away, hosts, knockout=True,
+                                   psi=psi, shootout_model=shootout_model))
         else:
             out.append(score_fixture(model, home, away, hosts, knockout=True, psi=psi,
                                      shootout_model=shootout_model, stage="r32",
@@ -268,10 +310,14 @@ def build_score_sections(
     psi=None,
     shootout_model=None,
     alt_k: float = ALT_PER_1000M,
+    pre_model: MatchModel | None = None,
+    ko_winners: dict[frozenset, str] | None = None,
 ) -> ScoreSections:
     return ScoreSections(
-        groups=build_group_scores(model, fixtures, played, groups, hosts, venue_alt, fatigue, alt_k),
-        knockouts=build_knockout_scores(model, bracket, played_ko, hosts, psi, shootout_model),
+        groups=build_group_scores(model, fixtures, played, groups, hosts, venue_alt, fatigue, alt_k,
+                                  pre_model=pre_model),
+        knockouts=build_knockout_scores(model, bracket, played_ko, hosts, psi, shootout_model,
+                                        pre_model=pre_model, ko_winners=ko_winners),
     )
 
 

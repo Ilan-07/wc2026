@@ -138,14 +138,20 @@ section{padding:48px 0;border-bottom:1px solid var(--line)}
 .scard{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 15px}
 .scard .gh{font-family:var(--display);font-weight:600;font-size:14px;margin-bottom:9px;display:flex;align-items:center;gap:9px}
 .scard .gh .gb{width:22px;height:22px;font-size:11.5px;background:var(--gold);color:#1a1205}
-.sx{padding:8px 0;border-top:1px solid var(--line)}
+.sx{padding:9px 0;border-top:1px solid var(--line)}
 .sx:first-of-type{border-top:none}
-.sx .sl{display:grid;grid-template-columns:1fr auto 1fr;align-items:baseline;gap:8px}
+.sx .sl{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
 .sx .tm2{font-size:13px;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .sx .away{text-align:right}
-.sx .sc{font-family:var(--mono);font-weight:700;font-size:14px;color:var(--gold);flex:0 0 auto;font-variant-numeric:tabular-nums}
-.sx.played .sc{color:var(--teal)}
-.sx .meta2{font-family:var(--mono);font-size:10px;color:var(--mut);margin-top:4px;text-align:center}
+.sx .pbar{display:flex;height:9px;border-radius:5px;overflow:hidden;margin:6px 0 2px;background:var(--line)}
+.sx .pbar .seg{height:100%}
+.sx .pbar .home{background:var(--teal)}
+.sx .pbar .draw{background:var(--line2)}
+.sx .pbar .away{background:var(--gold)}
+.sx .pl{display:flex;justify-content:space-between;gap:8px;font-family:var(--mono);font-size:10px;color:var(--mut)}
+.sx .pl .res{text-align:center;flex:1 1 auto;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.sx.played .pl .res{color:var(--teal)}
+.sx.played .pl .res.miss{color:var(--gold)}
 /* bracket — matches flex-grow so each round centres between its feeder pair */
 .bracket{display:flex;gap:10px;overflow-x:auto;padding:6px 2px 24px;align-items:stretch;min-height:760px}
 .bcol{display:flex;flex-direction:column;min-width:176px;flex:0 0 auto}
@@ -276,11 +282,12 @@ footer{padding:34px 0 70px;color:var(--mut);font-size:12px;max-width:74ch}
  </section>
 
  <section id="scores">
-  <div class="h2"><span class="n">03</span> Match scores</div>
-  <p class="note">The model's scoreline for every fixture. The big number is the single <b>most-likely
-   exact score</b>; the line under it gives <b>expected goals</b> and the win/draw/loss split, so the
-   modal score is read in context (its own probability is only ~10–15% — football is noisy). Played
-   matches are <b>locked to their real result</b> (teal); knockout scores appear once the bracket is set.</p>
+  <div class="h2"><span class="n">03</span> Match win probability</div>
+  <p class="note">A bar for every fixture instead of a predicted scoreline: <span style="color:var(--teal)">home</span>
+   win / draw / <span style="color:var(--gold)">away</span> win (group), or each side's chance to <b>advance</b>
+   including extra time and penalties (knockout). <b>Upcoming</b> games use the current model. <b>Played</b> games
+   show the model's <b>pre-kickoff</b> call as the bar next to what actually happened — teal when the call was
+   right, gold when it missed. Knockout ties appear once the bracket is set.</p>
   <div class="scores" id="scoresEl"></div>
  </section>
 
@@ -426,18 +433,45 @@ D.groups.forEach(g=>{
 // scores — predicted (or locked) scoreline per fixture
 const pc0=(x)=>Math.round(x*100)+'%';
 const sel=document.getElementById('scoresEl');
+const segbar=(segs)=>'<div class="pbar">'+segs.map(s=>'<span class="seg '+s.c+'" style="width:'+
+ (s.w*100).toFixed(1)+'%" title="'+s.t+' '+pc0(s.w)+'"></span>').join('')+'</div>';
+// Each fixture shows a win-/advance-probability bar instead of a predicted score. Upcoming games use
+// the live model's probabilities; played games show the model's FROZEN pre-kickoff call as the bar
+// (teal = it got the result right, gold = it missed) next to what actually happened — a receipt.
 function scoreCard(title,badge,fixtures){
  const card=el('<div class="scard"><div class="gh"><span class="gb">'+badge+'</span>'+title+'</div></div>');
  fixtures.forEach(f=>{
-  const score=f.mh+' – '+f.ma;
-  let meta;
-  if(f.played){ meta=(f.adH!=null?'advanced':'final result')+' · locked'; }
-  else if(f.adH!=null){ // knockout: a level game is settled by ET + penalties, so show advance%
-   meta='xG '+f.h.toFixed(1)+'–'+f.a.toFixed(1)+' · advance '+pc0(f.adH)+'/'+pc0(f.adA)+' · this score '+pc0(f.mp)+' (reg.)'; }
-  else{ meta='xG '+f.h.toFixed(1)+'–'+f.a.toFixed(1)+' · W/D/L '+pc0(f.pH)+'/'+pc0(f.pD)+'/'+pc0(f.pA)+' · this score '+pc0(f.mp); }
+  const ko=!!(f.round&&f.round.length);
+  let segs,left='',right='',res='',miss=false;
+  if(f.played){
+   if(ko&&f.preAdH!=null){                         // knockout receipt: pre-match advance call
+    segs=[{w:f.preAdH,c:'home',t:f.home+' advance'},{w:f.preAdA,c:'away',t:f.away+' advance'}];
+    left=pc0(f.preAdH); right=pc0(f.preAdA);
+    const adv=f.adH!=null?(f.adH>=f.adA?f.home:f.away):null;
+    const fav=f.preAdH>=f.preAdA?f.home:f.away;
+    miss=!!adv&&adv!==fav; res=adv?('✓ '+adv+(miss?' — upset':'')):'played';
+   }else if(f.preH!=null){                          // group receipt: pre-match W/D/L call
+    segs=[{w:f.preH,c:'home',t:f.home+' win'},{w:f.preD,c:'draw',t:'draw'},{w:f.preA,c:'away',t:f.away+' win'}];
+    left=pc0(f.preH); right=pc0(f.preA);
+    const out=f.mh>f.ma?'H':(f.ma>f.mh?'A':'D');
+    const fav=(f.preH>=f.preD&&f.preH>=f.preA)?'H':((f.preA>=f.preD&&f.preA>=f.preH)?'A':'D');
+    miss=out!==fav; res=f.mh+'–'+f.ma+(miss?' ✗':' ✓');
+   }else{                                           // no pre-match call available: show the result
+    const h=f.mh>f.ma?1:(f.ma>f.mh?0:0.5); segs=[{w:h,c:'home',t:''},{w:1-h,c:'away',t:''}];
+    res=f.mh+'–'+f.ma+' · final';
+   }
+  }else if(ko&&f.adH!=null){                        // upcoming knockout: advance probability
+   segs=[{w:f.adH,c:'home',t:f.home+' advance'},{w:f.adA,c:'away',t:f.away+' advance'}];
+   left=pc0(f.adH); right=pc0(f.adA); res='to advance';
+  }else{                                            // upcoming group: win / draw / loss
+   segs=[{w:f.pH,c:'home',t:f.home+' win'},{w:f.pD,c:'draw',t:'draw'},{w:f.pA,c:'away',t:f.away+' win'}];
+   left=pc0(f.pH); right=pc0(f.pA); res=pc0(f.pD)+' draw';
+  }
   card.appendChild(el('<div class="sx'+(f.played?' played':'')+'">'+
-   '<div class="sl"><span class="tm2 home">'+f.home+'</span><b class="sc">'+score+'</b>'+
-   '<span class="tm2 away">'+f.away+'</span></div><div class="meta2">'+meta+'</div></div>'));
+   '<div class="sl"><span class="tm2 home">'+f.home+'</span><span class="tm2 away">'+f.away+'</span></div>'+
+   segbar(segs)+
+   '<div class="pl"><span>'+left+'</span><span class="res'+(miss?' miss':'')+'">'+res+
+   '</span><span>'+right+'</span></div></div>'));
  });
  return card;
 }

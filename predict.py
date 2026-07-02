@@ -245,21 +245,29 @@ def build_match_model(matches, *, bayesian: bool = True, n_boot: int = 15,
     return _member(base_params, _load_xg_blend(before=xg_before))
 
 
-def pretournament_group_qualify(groups: dict, *, bayesian: bool = True, n_boot: int = 15,
+def frozen_pretournament_model(bayesian: bool = True, n_boot: int = 15) -> MatchModel:
+    """The production match model fit on history *before* the June 11 kickoff (xG blend out-of-sample
+    too) — the single leakage-free "what the model predicted before a ball was kicked" object, shared
+    by the pre-tournament group forecast and every played fixture's pre-match receipt."""
+    teams = {t for ts in loaders.load_wc2026_groups().values() for t in ts}
+    matches = loaders.load_results(since="2014-01-01", min_team_matches=20, keep_teams=teams)
+    frozen = [m for m in matches if m["date"] < KICKOFF]
+    return build_match_model(frozen, bayesian=bayesian, n_boot=n_boot, xg_before=KICKOFF.isoformat())
+
+
+def pretournament_group_qualify(groups: dict, *, model: MatchModel | None = None,
+                                bayesian: bool = True, n_boot: int = 15,
                                 n_sims: int = 10_000) -> dict[str, float]:
     """The model's **pre-kickoff** P(qualify from group) per team — the frozen, leakage-free forecast
-    the group cards grade with a Q. The production match model is fit on data *before* the June 11
-    kickoff (xG blend out-of-sample too) and the group stage is simulated with no results conditioned
-    in, so this is what the model genuinely predicted before a ball was kicked. It never changes once
-    the tournament starts, so it is computed once and cached to disk (deterministic, seed-fixed)."""
+    the group cards grade with a Q. The group stage is simulated with no results conditioned in, so
+    this is what the model genuinely predicted before a ball was kicked. It never changes once the
+    tournament starts, so it is computed once and cached to disk (deterministic, seed-fixed)."""
     teams = [t for g in groups.values() for t in g]
     if PRETOURNEY_QUALIFY.exists():
         cached = json.loads(PRETOURNEY_QUALIFY.read_text())
         if all(t in cached for t in teams):
             return cached
-    matches = loaders.load_results(since="2014-01-01", min_team_matches=20, keep_teams=set(teams))
-    frozen = [m for m in matches if m["date"] < KICKOFF]
-    model = build_match_model(frozen, bayesian=bayesian, n_boot=n_boot, xg_before=KICKOFF.isoformat())
+    model = model or frozen_pretournament_model(bayesian=bayesian, n_boot=n_boot)
     sim = TournamentSimulator(model, groups, psi=loaders.load_shootout_psi())
     qp = {t: float(p) for t, p in sim.run(n_sims=n_sims, seed=0).reach_prob["r32"].items()}
     PRETOURNEY_QUALIFY.parent.mkdir(parents=True, exist_ok=True)
@@ -377,7 +385,8 @@ def _derive_known_bracket(groups: dict, played: dict) -> list[str] | None:
 
 def build_payload(teams, groups, matches, champ, market_champ, blended, sd, result,
                   avail, n_sims, bayesian, played, news, pick, p_pick, score_model=None,
-                  psi=None, shootout_model=None, known_bracket=None, pretourney_q=None) -> dict:
+                  psi=None, shootout_model=None, known_bracket=None, pretourney_q=None,
+                  pre_model=None) -> dict:
     """Assemble the full data object the interactive dashboard renders from.
 
     ``score_model`` is the central match model used to attach a predicted scoreline to every
@@ -555,6 +564,8 @@ def build_payload(teams, groups, matches, champ, market_champ, blended, sd, resu
             venue_alt=loaders.load_wc2026_group_venue_altitudes(),
             psi=psi,
             shootout_model=shootout_model,
+            pre_model=pre_model,  # frozen pre-kickoff call attached to every played fixture
+            ko_winners=ko_winners,  # names the advancer even when a tie went to penalties
         ).payload()
 
     vintage = max(m["date"] for m in matches).isoformat()
@@ -709,20 +720,23 @@ def main(n_sims: int = 30_000, n_boot: int = 15, refresh: bool = False,
     from wc2026.collective import social
     social_pulse = social.fetch_many(top, limit=5)
 
-    # The model's frozen pre-kickoff group forecast — orders the group cards and is graded by the Q
-    # markers. Cached, so this is a cheap load after the first run.
+    # The frozen pre-kickoff model — orders the group cards (via its qualification forecast, cached)
+    # and supplies every played fixture's pre-match "receipt". Building it loads a cached posterior,
+    # so this is cheap; degrade gracefully if anything is missing.
     try:
-        pretourney_q = pretournament_group_qualify(groups, bayesian=bayesian, n_boot=n_boot)
+        pre_model = frozen_pretournament_model(bayesian=bayesian, n_boot=n_boot)
+        pretourney_q = pretournament_group_qualify(groups, model=pre_model, bayesian=bayesian,
+                                                   n_boot=n_boot)
     except Exception as e:
-        print(f"  pre-tournament group forecast unavailable ({type(e).__name__}: {e}); "
-              "ordering groups by the live projection.")
-        pretourney_q = None
+        print(f"  pre-tournament forecast unavailable ({type(e).__name__}: {e}); "
+              "ordering groups by the live projection and omitting the pre-match receipt.")
+        pre_model = pretourney_q = None
 
     data = build_payload(
         teams, groups, matches, champ, market_champ, blended, sd, result,
         bool(avail) and avail or {}, n_sims, bayesian, played, news, pick, p_pick,
         score_model=score_model, psi=psi, shootout_model=shootout_model,
-        known_bracket=known_bracket, pretourney_q=pretourney_q,
+        known_bracket=known_bracket, pretourney_q=pretourney_q, pre_model=pre_model,
     )
 
     # Console preview of the per-match scorelines (the dashboard shows the full section).
