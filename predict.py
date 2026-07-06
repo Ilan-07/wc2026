@@ -565,13 +565,14 @@ def build_payload(teams, groups, matches, champ, market_champ, blended, sd, resu
             loaders.load_wc2026_group_fixtures(),
             played,
             groups,
-            bracket=known_bracket,  # the real (or derived) R32 ties, so KO scorelines match the tree
+            bracket=border,  # the exact R32 fold order the bracket tree uses, so KO scorelines match
             played_ko=loaders.load_wc2026_played_knockouts(),
             venue_alt=loaders.load_wc2026_group_venue_altitudes(),
             psi=psi,
             shootout_model=shootout_model,
             pre_model=pre_model,  # frozen pre-kickoff call attached to every played fixture
             ko_winners=ko_winners,  # names the advancer even when a tie went to penalties
+            blended=blended,  # market-anchored title prob projects unplayed ties into later rounds
         ).payload()
 
     vintage = max(m["date"] for m in matches).isoformat()
@@ -750,7 +751,8 @@ def main(n_sims: int = 30_000, n_boot: int = 15, refresh: bool = False,
     _sections = build_score_sections(
         score_model, loaders.load_wc2026_group_fixtures(), played, groups,
         bracket=known_bracket, played_ko=loaders.load_wc2026_played_knockouts(),
-        venue_alt=venue_alt, psi=psi, shootout_model=shootout_model)
+        venue_alt=venue_alt, psi=psi, shootout_model=shootout_model,
+        ko_winners=loaders.load_wc2026_knockout_results(), blended=blended)
     print("\n" + format_scores_console(_sections))
     data["social"] = [  # display-only feed; not consumed by any forecast computation
         {"team": tp.team, "pulse": tp.pulse, "mood": tp.mood,

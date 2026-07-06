@@ -40,3 +40,31 @@ ts=$(date -u +"%Y-%m-%d %H:%M UTC")
 git -C "$PUB" commit -q -m "Update forecast — $ts"
 git -C "$PUB" push -q origin HEAD:gh-pages
 echo "publish: pushed forecast update ($ts)"
+
+# GitHub Pages' "Deploy from a branch" build is intermittently flaky: pushing to gh-pages triggers
+# the auto-managed pages-build-deployment, whose backend sometimes returns a bare "Deployment failed,
+# try again later." with no retry — so a red deploy appears even though the content is fine. The push
+# above already succeeded and the live site keeps serving the last good build; here we just watch the
+# resulting Pages build and, if it errors, ask GitHub to rebuild the same commit (needs `gh`). Best
+# effort: never fail the publish over this — a missing `gh`, no auth, or an API hiccup is a no-op.
+command -v gh >/dev/null 2>&1 || { echo "publish: gh not found — skipping Pages deploy watch"; exit 0; }
+REPO="Ilan-07/wc2026"
+pages_status() { gh api "repos/$REPO/pages/builds/latest" -q .status 2>/dev/null; }
+for attempt in 1 2 3; do
+  # Let the push settle, then wait for the auto-triggered build to leave the "building" state.
+  sleep 15
+  st=""
+  for _ in $(seq 1 24); do          # up to ~2 min per attempt
+    st=$(pages_status)
+    [ "$st" = "building" ] || [ -z "$st" ] || break
+    sleep 5
+  done
+  if [ "$st" = "built" ]; then
+    echo "publish: Pages deploy succeeded"
+    exit 0
+  fi
+  echo "publish: Pages deploy status='${st:-unknown}' (attempt $attempt) — requesting a rebuild"
+  gh api -X POST "repos/$REPO/pages/builds" >/dev/null 2>&1 || true
+done
+echo "publish: Pages deploy still not green after retries — GitHub backend likely degraded; the live"
+echo "         site keeps serving the last good build. Re-run later: gh api -X POST repos/$REPO/pages/builds"

@@ -238,6 +238,41 @@ def build_group_scores(
     return out
 
 
+# Each knockout round keyed by how many teams are still alive -> (stage id, display name). Display
+# names mirror the bracket column headers in the dashboard renderer so the Scores and Bracket
+# sections read identically.
+_KO_ROUNDS: dict[int, tuple[str, str]] = {
+    32: ("r32", "Round of 32"),
+    16: ("r16", "Round of 16"),
+    8: ("qf", "Quarterfinals"),
+    4: ("sf", "Semifinals"),
+    2: ("final", "Final"),
+}
+
+
+def _tie_advancer_is_home(
+    fs: FixtureScore, home: str, away: str,
+    ko_winners: dict[frozenset, str], blended: dict[str, float] | None,
+) -> bool:
+    """Which side of a resolved-or-projected tie folds into the next round.
+
+    Mirrors ``predict._knockout_advances_a`` so the projected pairings match the bracket tree
+    exactly: a played, decided tie locks its real winner (``ko_winners`` includes shootout winners,
+    and a decisive tie already carries a 1/0 ``advance_home`` from its real score); otherwise fall
+    back to the blended (market-anchored) title probability, or — when no market blend is supplied
+    (e.g. the fundamentals-only console) — the model's own advancement probability."""
+    won = ko_winners.get(frozenset((home, away)))
+    if won in (home, away):
+        return won == home
+    # A played tie that resolved (on the pitch or via a recorded shootout) knows its own advancer;
+    # never let the market blend override a real result even if ``ko_winners`` wasn't supplied.
+    if fs.played and fs.advance_home is not None:
+        return fs.advance_home >= 0.5
+    if blended is not None:
+        return blended.get(home, 0.0) >= blended.get(away, 0.0)
+    return fs.advance_home is None or fs.advance_home >= 0.5
+
+
 def build_knockout_scores(
     model: MatchModel,
     bracket: list[str] | None,
@@ -247,35 +282,47 @@ def build_knockout_scores(
     shootout_model=None,
     pre_model: MatchModel | None = None,
     ko_winners: dict[frozenset, str] | None = None,
+    blended: dict[str, float] | None = None,
 ) -> list[FixtureScore]:
-    """Round-of-32 scorelines from a known 32-team bracket (pairs are bracket[2i], bracket[2i+1]).
-    Returns ``[]`` until the bracket is set. Already-played ties are locked to their real score;
-    upcoming ties carry an advancement probability (regulation + ET + shootout). ``pre_model`` adds
-    each played tie's pre-match advance call for the receipt; ``ko_winners`` names the side that went
-    through, so a tie level after 90' (settled on penalties) still records its advancer."""
+    """Scorelines for **every** knockout round (R32 -> R16 -> QF -> SF -> Final) from a known 32-team
+    bracket (pairs are ``bracket[2i], bracket[2i+1]``). Returns ``[]`` until the bracket is set.
+
+    Walks the same single-elimination fold the bracket tree uses: each round pairs the survivors of
+    the previous one, so the projected later-round fixtures match the displayed bracket. Already-played
+    ties are locked to their real score; upcoming ties carry an advancement probability (regulation +
+    ET + shootout). ``pre_model`` adds each played tie's pre-match advance call for the receipt;
+    ``ko_winners`` names the side that went through (so a tie level after 90' still records its
+    advancer); ``blended`` is the market-anchored title probability used to project the winner of an
+    unplayed tie into the next round, keeping these pairings identical to the bracket section."""
     if not bracket or len(bracket) != 32:
         return []
     played_ko = played_ko or {}
     ko_winners = ko_winners or {}
     out: list[FixtureScore] = []
-    for i in range(0, 32, 2):
-        home, away = bracket[i], bracket[i + 1]
-        real = played_ko.get(frozenset((home, away)))
-        if real is not None:
-            hteam, hs, as_ = real
-            gh, ga = (hs, as_) if hteam == home else (as_, hs)
-            fs = _played_fixture(home, away, gh, ga, knockout=True,
-                                 stage="r32", round_name="Round of 32")
-            if fs.advance_home is None:  # level after 90' — take the advancer from the shootout result
-                w = ko_winners.get(frozenset((home, away)))
-                if w:
-                    fs.advance_home, fs.advance_away = (1.0, 0.0) if w == home else (0.0, 1.0)
-            out.append(_attach_pre(fs, pre_model, home, away, hosts, knockout=True,
-                                   psi=psi, shootout_model=shootout_model))
-        else:
-            out.append(score_fixture(model, home, away, hosts, knockout=True, psi=psi,
-                                     shootout_model=shootout_model, stage="r32",
-                                     round_name="Round of 32"))
+    alive = list(bracket)
+    while len(alive) > 1:
+        stage, round_name = _KO_ROUNDS.get(len(alive), (f"r{len(alive)}", f"Last {len(alive)}"))
+        nxt: list[str] = []
+        for i in range(0, len(alive), 2):
+            home, away = alive[i], alive[i + 1]
+            real = played_ko.get(frozenset((home, away)))
+            if real is not None:
+                hteam, hs, as_ = real
+                gh, ga = (hs, as_) if hteam == home else (as_, hs)
+                fs = _played_fixture(home, away, gh, ga, knockout=True,
+                                     stage=stage, round_name=round_name)
+                if fs.advance_home is None:  # level after 90' — take the advancer from the shootout
+                    w = ko_winners.get(frozenset((home, away)))
+                    if w:
+                        fs.advance_home, fs.advance_away = (1.0, 0.0) if w == home else (0.0, 1.0)
+                fs = _attach_pre(fs, pre_model, home, away, hosts, knockout=True,
+                                 psi=psi, shootout_model=shootout_model)
+            else:
+                fs = score_fixture(model, home, away, hosts, knockout=True, psi=psi,
+                                   shootout_model=shootout_model, stage=stage, round_name=round_name)
+            out.append(fs)
+            nxt.append(home if _tie_advancer_is_home(fs, home, away, ko_winners, blended) else away)
+        alive = nxt
     return out
 
 
@@ -292,8 +339,13 @@ class ScoreSections:
         for fs in self.groups:
             by_group.setdefault(fs.group, []).append(fs.to_dict())
         groups = [{"group": g, "fixtures": by_group[g]} for g in sorted(by_group)]
-        ko = [{"round": "Round of 32", "fixtures": [fs.to_dict() for fs in self.knockouts]}] \
-            if self.knockouts else []
+        # Group knockout fixtures by round, preserving the build order (R32 -> R16 -> QF -> SF ->
+        # Final) so the dashboard renders one score card per round in bracket order.
+        ko: list[dict] = []
+        for fs in self.knockouts:
+            if not ko or ko[-1]["round"] != fs.round_name:
+                ko.append({"round": fs.round_name, "fixtures": []})
+            ko[-1]["fixtures"].append(fs.to_dict())
         return {"groups": groups, "knockouts": ko}
 
 
@@ -312,12 +364,13 @@ def build_score_sections(
     alt_k: float = ALT_PER_1000M,
     pre_model: MatchModel | None = None,
     ko_winners: dict[frozenset, str] | None = None,
+    blended: dict[str, float] | None = None,
 ) -> ScoreSections:
     return ScoreSections(
         groups=build_group_scores(model, fixtures, played, groups, hosts, venue_alt, fatigue, alt_k,
                                   pre_model=pre_model),
         knockouts=build_knockout_scores(model, bracket, played_ko, hosts, psi, shootout_model,
-                                        pre_model=pre_model, ko_winners=ko_winners),
+                                        pre_model=pre_model, ko_winners=ko_winners, blended=blended),
     )
 
 
@@ -343,6 +396,11 @@ def format_scores_console(sections: ScoreSections) -> str:
         lines.append(f"\nGroup {g}")
         lines.extend(_fmt_line(fs) for fs in by_group[g])
     if sections.knockouts:
-        lines.append("\nRound of 32  (scores are regulation; advance% includes extra time + penalties)")
-        lines.extend(_fmt_line(fs) for fs in sections.knockouts)
+        lines.append("\nKnockouts  (scores are regulation; advance% includes extra time + penalties)")
+        current = None
+        for fs in sections.knockouts:
+            if fs.round_name != current:
+                current = fs.round_name
+                lines.append(f"\n{fs.round_name}")
+            lines.append(_fmt_line(fs))
     return "\n".join(lines)

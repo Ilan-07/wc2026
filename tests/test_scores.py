@@ -102,8 +102,13 @@ def test_knockouts_from_bracket_and_payload_shape(model_and_teams):
     model, teams = model_and_teams
     bracket = [teams[i % len(teams)] for i in range(32)]
     ko = scores.build_knockout_scores(model, bracket, hosts=set())
-    assert len(ko) == 16  # 32 teams -> 16 ties
-    assert all(fs.stage == "r32" and fs.round_name == "Round of 32" for fs in ko)
+    # The full single-elimination tree, not just the Round of 32: 16 + 8 + 4 + 2 + 1 = 31 ties.
+    assert len(ko) == 31
+    assert [fs.stage for fs in ko[:16]] == ["r32"] * 16
+    assert [fs.round_name for fs in ko[16:24]] == ["Round of 16"] * 8
+    assert [fs.round_name for fs in ko[24:28]] == ["Quarterfinals"] * 4
+    assert [fs.round_name for fs in ko[28:30]] == ["Semifinals"] * 2
+    assert ko[30].round_name == "Final"
 
     fixtures = [(None, teams[0], teams[1], "C")]
     groups = {"A": teams[:4], "B": teams[4:8]}
@@ -113,7 +118,10 @@ def test_knockouts_from_bracket_and_payload_shape(model_and_teams):
     )
     payload = sec.payload()
     assert payload["groups"][0]["group"] == "A"
-    assert payload["knockouts"][0]["round"] == "Round of 32"
+    # One score card per knockout round, in bracket order, ending at the Final.
+    assert [r["round"] for r in payload["knockouts"]] == \
+        ["Round of 32", "Round of 16", "Quarterfinals", "Semifinals", "Final"]
+    assert [len(r["fixtures"]) for r in payload["knockouts"]] == [16, 8, 4, 2, 1]
     fx = payload["groups"][0]["fixtures"][0]
     assert {"home", "away", "played", "h", "a", "mh", "ma", "mp", "pH", "pD", "pA"} <= set(fx)
 
@@ -166,7 +174,7 @@ def test_knockout_reports_advancement_not_a_standalone_draw(model_and_teams):
     model, teams = model_and_teams
     bracket = [teams[i % len(teams)] for i in range(32)]
     ko = scores.build_knockout_scores(model, bracket, hosts=set(), psi={})
-    assert len(ko) == 16
+    assert len(ko) == 31  # every unplayed knockout tie across the full tree carries advancement
     for fs in ko:
         assert fs.advance_home is not None and fs.advance_away is not None
         assert fs.advance_home + fs.advance_away == pytest.approx(1.0, abs=1e-9)
