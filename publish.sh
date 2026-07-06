@@ -47,9 +47,14 @@ echo "publish: pushed forecast update ($ts)"
 # above already succeeded and the live site keeps serving the last good build; here we just watch the
 # resulting Pages build and, if it errors, ask GitHub to rebuild the same commit (needs `gh`). Best
 # effort: never fail the publish over this — a missing `gh`, no auth, or an API hiccup is a no-op.
-command -v gh >/dev/null 2>&1 || { echo "publish: gh not found — skipping Pages deploy watch"; exit 0; }
+# launchd runs with a minimal PATH (see run_daily.sh), so Homebrew's bin dirs — where `gh` lives —
+# aren't on it. Add them before resolving `gh`, so the retry watcher fires unattended, not just in a
+# login shell.
+export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+GH="$(command -v gh || true)"
+[ -n "$GH" ] || { echo "publish: gh not found — skipping Pages deploy watch"; exit 0; }
 REPO="Ilan-07/wc2026"
-pages_status() { gh api "repos/$REPO/pages/builds/latest" -q .status 2>/dev/null; }
+pages_status() { "$GH" api "repos/$REPO/pages/builds/latest" -q .status 2>/dev/null; }
 for attempt in 1 2 3; do
   # Let the push settle, then wait for the auto-triggered build to leave the "building" state.
   sleep 15
@@ -64,7 +69,7 @@ for attempt in 1 2 3; do
     exit 0
   fi
   echo "publish: Pages deploy status='${st:-unknown}' (attempt $attempt) — requesting a rebuild"
-  gh api -X POST "repos/$REPO/pages/builds" >/dev/null 2>&1 || true
+  "$GH" api -X POST "repos/$REPO/pages/builds" >/dev/null 2>&1 || true
 done
 echo "publish: Pages deploy still not green after retries — GitHub backend likely degraded; the live"
 echo "         site keeps serving the last good build. Re-run later: gh api -X POST repos/$REPO/pages/builds"
