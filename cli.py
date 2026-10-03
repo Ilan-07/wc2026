@@ -20,6 +20,10 @@ Commands:
     shootout          penalty-shootout win-propensity ablation                    [#3]
     xg-joint          xG measurement-error joint-fit ablation                     [#4]
 
+Validation commands read the pinned, sha256-verified evaluation snapshot (``data/snapshots/``, see
+``wc2026.data.snapshot``) so their numbers are reproducible; pass ``--live-data`` to run them on the
+live ``data/raw/results.csv`` feed instead (numbers will drift as upstream edits history).
+
 Run after each matchday during the tournament:  python cli.py predict --refresh --refresh-odds
 """
 
@@ -28,9 +32,17 @@ from __future__ import annotations
 import argparse
 import sys
 
+# Subcommands that evaluate on historical data → run on the pinned evaluation snapshot by default.
+VALIDATION_CMDS = {
+    "score", "calibrate", "validate", "backtest", "stage-reliability", "blend-weight", "state-space",
+    "bayes-tau", "shootout", "xg-joint", "draw-pick", "probe",
+}
+
 
 def main(argv=None) -> None:
     p = argparse.ArgumentParser(prog="wc2026", description="WC2026 forecasting system")
+    p.add_argument("--live-data", action="store_true",
+                   help="validation commands: use the live data/raw/results.csv instead of the pinned snapshot")
     sub = p.add_subparsers(dest="cmd", required=True)
 
     sp = sub.add_parser("predict", help="live winner forecast + dashboard")
@@ -72,6 +84,11 @@ def main(argv=None) -> None:
     sub.add_parser("track", help="live tournament track record — score the forecast vs WC2026 results")
 
     args = p.parse_args(argv)
+
+    if args.cmd in VALIDATION_CMDS:
+        from wc2026.data.snapshot import RESULTS_COMMIT, use_snapshot
+        use_snapshot(results=not args.live_data)
+        print(f"[data: {'LIVE data/raw/results.csv' if args.live_data else 'pinned snapshot martj42@' + RESULTS_COMMIT[:7]}]\n")
 
     if args.cmd == "predict":
         import predict

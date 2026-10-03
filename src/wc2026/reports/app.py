@@ -275,7 +275,8 @@ footer{padding:34px 0 70px;color:var(--mut);font-size:12px;max-width:74ch}
  <section id="groups">
   <div class="h2"><span class="n">02</span> The draw</div>
   <p class="note">All 12 groups, ordered by the model's <b>pre-kickoff</b> forecast — each team's number is the
-   probability it qualified, frozen before a ball was kicked. A <span class="qmark">Q</span> marks every team that
+   probability it qualified, from a model fit only on pre-kickoff data (recomputed with the current code,
+   not a stored forecast). A <span class="qmark">Q</span> marks every team that
    <b>actually</b> qualified, so you can see how the call held up: a Q on a low-ranked team means the model under-rated
    them; a top row with no Q means it over-rated them. Click a team for its reasoning.</p>
   <div class="groups" id="groupsEl"></div>
@@ -324,10 +325,13 @@ footer{padding:34px 0 70px;color:var(--mut);font-size:12px;max-width:74ch}
   <div class="card">
    <div id="trackLive" class="meta" style="margin-bottom:12px"></div>
    <p class="note" style="margin:0">
-    <b>Historical validation.</b> 9-tournament out-of-sample W/D/L <b>RPS 0.195 vs 0.234 uniform</b> (skill
-    +0.039), positive on <b>8 of 9</b> tournaments (399 matches). Deep-run stage reliability <b>Brier 0.104,
-    ECE 0.020</b> across four World Cups; match-level calibration ECE ~0.03. Honest caveat: the betting market
-    still edges the model alone (0.190 vs 0.204) — which is why the headline blends <b>25% model / 75% market</b>.
+    <b>Historical validation</b> (of the Dixon-Coles MLE rating, not the Bayesian default shown above).
+    9-tournament out-of-sample W/D/L <b>RPS 0.195 vs 0.234 uniform</b> (skill +0.039), positive on
+    <b>8 of 9</b> tournaments (399 matches); match-level ECE ≈0.03. Deep-run stage reliability <b>Brier 0.104,
+    ECE ≈0.02</b> across four World Cups. On club odds the betting market beats the model (0.190 vs 0.204)
+    and the fitted model weight is 0; the <b>25% model / 75% market</b> blend is an editorial choice.
+    This live record uses a pre-kickoff data cutoff and is recomputed with the current code; it is not a
+    stored forecast.
    </p>
   </div>
  </section>
@@ -363,7 +367,7 @@ document.getElementById('gen').textContent = D.generated;
       + t.uniform_rps + ' uniform (skill '+(t.skill>=0?'+':'')+t.skill+') &middot; ' + calls;
   } else {
     e.innerHTML = '<b>Live scoring begins at kickoff</b> &mdash; ' + (t.kickoff || '2026-06-11')
-      + '. Each WC2026 match is graded against a rating frozen before the tournament.';
+      + '. Each WC2026 match is graded by a rating fit only on pre-tournament data.';
   }
 })();
 

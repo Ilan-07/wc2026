@@ -14,6 +14,35 @@ jobs:
         run: python -m pip install --upgrade pip ruff
       - name: Lint
         run: ruff check src tests
-# Note: the full pytest suite (115 tests) needs the local datasets (gitignored) and PyMC, so it
-# runs locally (`PYTHONPATH=src pytest`) rather than in CI. A data-fixture-backed test job is a
-# planned follow-up.
+
+  test:
+    # Full suite on the pinned, sha256-verified evaluation snapshot, including the regression gate
+    # (tests/test_reproducibility.py) that re-computes every headline RPS/Brier/ECE number in README.md.
+    # PyMC is not installed, so the Bayesian tests skip (pytest.importorskip); everything else runs.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install locked dependencies (minus PyMC/ArviZ)
+        run: |
+          python -m pip install --upgrade pip
+          grep -v -E '^(pymc|arviz)==' requirements-lock.txt > /tmp/lock.txt
+          pip install -r /tmp/lock.txt
+          pip install -e . --no-deps
+      - name: Cache evaluation snapshot
+        uses: actions/cache@v4
+        with:
+          path: data/snapshots
+          key: eval-snapshot-${{ hashFiles('src/wc2026/data/snapshot.py') }}
+      - name: Fetch + verify evaluation snapshot
+        run: PYTHONPATH=src python -c "from wc2026.data.snapshot import fetch_snapshot; fetch_snapshot()"
+      - name: Seed data/raw from the snapshot (data-dependent unit tests read the live path)
+        run: |
+          mkdir -p data/raw
+          cp data/snapshots/martj42-*/results.csv data/snapshots/martj42-*/shootouts.csv data/raw/
+      - name: Test
+        env:
+          WC2026_REQUIRE_SNAPSHOT: "1"
+        run: PYTHONPATH=src python -m pytest -q -rP  # -rP: print the observed headline numbers

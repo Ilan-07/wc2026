@@ -22,7 +22,9 @@ class Config:
     altitude_per_1000m: float = 0.12    # altitude penalty scale (unvalidated prior)
 
     # fusion
-    model_weight: float = 0.35          # log-opinion-pool weight on the model (market gets the rest)
+    # log-opinion-pool weight on the model (market gets the rest). EDITORIAL, not fitted: the only fit we
+    # can run (club odds, `cli.py blend-weight`) learns 0.00. See the rationale in predict.py.
+    model_weight: float = 0.25
 
     # data
     odds_regions: str = "us,uk,eu"

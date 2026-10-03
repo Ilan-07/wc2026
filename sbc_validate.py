@@ -31,9 +31,16 @@ def main() -> dict:
               f"{ranks.mean():.0f} / {res['n_post']} (expect {res['n_post'] / 2:.0f})")
         print(_ascii_hist(ranks, res["n_post"]))
     worst = min(res["uniformity"].values())
-    print(f"\nVerdict: {'all tracked parameters pass' if worst > 0.05 else 'some parameter flags'} "
-          f"SBC uniformity (min p = {worst:.3f}). The hierarchical-Bayesian inference behind "
-          f"`predict --bayesian` is calibrated on its own generative model.")
+    bonf = 0.05 / len(TRACKED)  # family-wise threshold across the tracked parameters
+    flagged = [k for k in TRACKED if res["uniformity"][k] <= 0.05]
+    if not flagged:
+        verdict = "all tracked parameters pass SBC uniformity"
+    elif worst > bonf:
+        verdict = (f"{', '.join(flagged)} flagged at p<=0.05 but none after Bonferroni (p<={bonf:.4f}) "
+                   "— borderline, not evidence of a broken posterior")
+    else:
+        verdict = f"{', '.join(flagged)} FAIL SBC uniformity even after Bonferroni (p<={bonf:.4f})"
+    print(f"\nVerdict: {verdict} (min p = {worst:.3f}).")
     return res
 
 

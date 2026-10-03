@@ -8,8 +8,8 @@ This module (a) converts decimal odds into a proper probability distribution by 
 bookmaker's overround ("de-vigging"), and (b) loads the football-data.co.uk league CSVs used to
 *validate* the fusion at match level (the plan's "train fusion weights at match level" rule).
 
-    # download league odds, e.g. EPL/Bundesliga/La Liga/Serie A/Ligue 1, recent seasons:
-    curl -sSL -o data/raw/odds/E0_2324.csv https://www.football-data.co.uk/mmz4281/2324/E0.csv
+    # the league-odds seasons are part of the pinned evaluation snapshot (wc2026.data.snapshot):
+    PYTHONPATH=src python fetch_data.py   # -> data/snapshots/club-odds/E0_2324.csv, ... (sha256-checked)
 """
 
 from __future__ import annotations
@@ -19,7 +19,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-_ODDS_DIR = Path(__file__).resolve().parents[3] / "data" / "raw" / "odds"
+_DATA = Path(__file__).resolve().parents[3] / "data"
+_ODDS_DIR = _DATA / "snapshots" / "club-odds"  # pinned club-odds seasons (validation only)
 
 
 def devig(odds_home: float, odds_draw: float, odds_away: float) -> np.ndarray:
@@ -76,7 +77,7 @@ def load_odds_csv(path: str | Path, prefer: str = "Avg") -> list[dict]:
 
 def load_outright_odds(path: str | Path | None = None) -> dict[str, float]:
     """Load WC2026 outright (to-win) decimal odds from the snapshot CSV (skips '#' comments)."""
-    p = Path(path) if path else (_ODDS_DIR.parent / "wc2026_outright_odds.csv")
+    p = Path(path) if path else (_DATA / "raw" / "wc2026_outright_odds.csv")
     if not p.exists():
         raise FileNotFoundError(f"{p} not found.")
     odds: dict[str, float] = {}
