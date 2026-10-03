@@ -1,7 +1,7 @@
 """Learn the model/market blend weight by cross-validation (#8, Lane 3).
 
-The WC2026 report blends the model's title probabilities with the market at a hand-set
-MODEL_WEIGHT=0.35. This learns the weight properly: k-fold CV of the log-opinion-pool weight on the
+The WC2026 forecast blends the model's title probabilities with the market at a hand-set
+``CONFIG.model_weight`` (0.25). This learns the weight properly: k-fold CV of the log-opinion-pool weight on the
 real fixture-level data where we actually have both a model forecast and de-vigged bookmaker odds
 (five leagues × three seasons, ~5k matches — the same data as ``fusion_validate.py``). The CV weight
 and, crucially, its spread across folds are the honest read on how much the model should be trusted
@@ -13,9 +13,10 @@ Run: ``PYTHONPATH=src python3 blend_weight_fit.py``.
 from __future__ import annotations
 
 from fusion_validate import collect
+from wc2026.config import CONFIG
 from wc2026.fusion.pool import cross_val_model_weight
 
-EDITORIAL_WEIGHT = 0.35  # the hand-set value currently in report.py / config
+EDITORIAL_WEIGHT = CONFIG.model_weight  # the hand-set value predict.py / report.py ship
 
 
 def main() -> dict:
@@ -34,10 +35,10 @@ def main() -> dict:
               f"vs model {res['cv_model']:.4f}")
 
     w = rps["mean_weight"]
-    print(f"\nLearned (RPS-optimal) model weight ≈ {w:.2f}; the report ships {EDITORIAL_WEIGHT:.2f}.")
+    print(f"\nLearned (RPS-optimal) model weight ≈ {w:.2f}; the forecast ships {EDITORIAL_WEIGHT:.2f}.")
     print("Reconciliation: on liquid markets the RPS-optimal model weight is small — the de-vigged")
     print("market already dominates (the project's documented 'can't beat the market' finding). The")
-    print(f"report's {EDITORIAL_WEIGHT:.2f} is a deliberate editorial choice to keep the model's voice")
+    print(f"forecast's {EDITORIAL_WEIGHT:.2f} is a deliberate editorial choice to keep the model's voice")
     print("audible and to surface the stage probabilities the market never quotes — NOT an RPS-optimal")
     print(f"number. This script makes that trade-off explicit and gives the evidence-based anchor (~{w:.2f}).")
     return {"rps": rps, "logloss": ll, "editorial_weight": EDITORIAL_WEIGHT}

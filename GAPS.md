@@ -17,6 +17,9 @@ unrelated to this roadmap.)
 | **Data-feed staleness** | The live forecast is only as fresh as the community `martj42/international_results` GitHub CSV, which lags real-time by days during the tournament. The deciding matchday can be unpublished for 2–3 days, leaving late groups undecided and their Round-of-32 slots projected rather than real. | High during the tournament — the dashboard chronically trails reality. | Two manual overrides exist: hand-append the day's scores to `data/raw/results.csv`, or drop the 32 real R32 teams (bracket order) into `data/raw/wc2026_bracket.txt` — both are now honoured by the bracket view. **No convenient entry tool yet** (proposed: a `cli.py results`/`cli.py bracket` command). |
 | **#11 Injuries — live feed** | Availability is one of the few proven-orthogonal signals, but the API-Football injuries/suspensions feed is paywalled for the current season. | Medium — we rely on a manually-maintained file. | `data/raw/wc2026_injuries.txt` (manual) is wired into the forecast; `injury_scenario.py` suggests entries from Wikipedia. The API path (`collective/api_football.py`) is built but inert without a key. |
 
+| **Backtest team-filter look-ahead** | `load_results(min_team_matches=15)` counts matches over the whole file, including post-cutoff ones, so *which teams* enter a backtest training set depends on future data. | Low — affects team inclusion, not parameters. | Documented in README; fix deferred so the published numbers stay comparable (fix = count per cutoff, then update the regression gate). |
+| **Half-life tuned on test WCs** | `tune_halflife.py` picked 1100 days on WC2018+2022, two of the nine backtest editions. | Low — one scalar. | Documented in README; fix = nested/leave-one-out tuning. |
+
 ## Tagged `gap #N` — status
 
 | # | What | Status | Where |
@@ -29,7 +32,7 @@ unrelated to this roadmap.)
 | 18 | Refresh ON by default so a stale run can't happen | **Closed** | `cli.py` |
 | 20 | Canonical team-name registry + coverage audit | **Closed** | `data/teams.py` |
 | 27 | Central configuration — one place for scattered parameters | **Closed** | `config.py` |
-| 28 | Reproducible data acquisition — every source in one place | **Closed** | `fetch_data.py` |
+| 28 | Reproducible data acquisition — every source in one place; validation pinned to a sha256-verified snapshot and the headline numbers CI-gated | **Closed** | `fetch_data.py`, `data/snapshot.py`, `tests/test_reproducibility.py` |
 | 35 | Champion-level calibration | **Inherent** — cannot be validated on ~3–4 tournaments (see below) | `evaluate/stage_reliability.py`, `evaluate/calibration.py` |
 
 ## Research items tested and gated OUT (detail in `FINDINGS.md`)

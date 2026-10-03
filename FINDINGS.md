@@ -2,12 +2,15 @@
 
 This project's most valuable output is not the forecast; it's a record of which celebrated factors
 *measurably* improve prediction and which don't, tested out-of-sample with proper scoring rules
-(Ranked Probability Score, lower = better). Every claim below is reproducible from the repo.
+(Ranked Probability Score, lower = better). The headline backtest, calibration, stage-reliability and
+model-vs-market numbers are re-computed in CI on a pinned, sha256-verified data snapshot
+(`tests/test_reproducibility.py`). The ablation results below are reproducible with the named scripts, but they
+are not CI-gated. SBC and Bayesian-vs-MLE were re-run for the audit in `audit/` and reproduced (see the notes on each); the τ ablation and the other ablations were not re-run.
 
 ## The spine works
 - Dixon-Coles correlated-Poisson + Monte Carlo over the real draw.
 - Real out-of-sample skill: **WC2018 RPS 0.214, WC2022 RPS 0.215** vs ~0.24 uniform baseline (`score_backtest.py`).
-- Well-calibrated at match level (ECE ~0.03). Recency half-life tuned to **1100 days** (`tune_halflife.py`).
+- Well-calibrated at match level (ECE 0.031 over the 399 backtest matches, `cli.py probe`). Recency half-life tuned to **1100 days** (`tune_halflife.py`).
 
 ## Validation depth (widening the evidence beyond two World Cups)
 - **9-tournament backtest** (`tournament_backtest.py`): out-of-sample W/D/L RPS **0.195 vs uniform 0.234,
@@ -20,13 +23,14 @@ This project's most valuable output is not the forecast; it's a record of which 
   calibrated, not just the match probabilities. (Mean-pred == base-rate is a mechanical slot-count identity;
   ECE is the real signal.)
 - **Simulation-based calibration** (`sbc_validate.py`): SBC (Talts et al.) on the hierarchical-Bayesian
-  sampler — 128 prior→data→posterior replicates, rank-uniformity per parameter. mu0/sigma_att/att pass
-  cleanly (p = 0.17–0.64); **home** is borderline (p = 0.026, mild upward rank skew) which across 4
-  simultaneous tests is within chance and consistent with short-chain tuning, not a broken posterior. The
-  inference machinery behind `predict --bayesian` is calibrated on its own generative model.
+  sampler — 128 prior→data→posterior replicates, rank-uniformity per parameter. mu0 / sigma_att / att_0
+  pass (p = 0.954 / 0.173 / 0.637); **home** is flagged (p = 0.026, mild upward rank skew: mean rank 283/500
+  vs 250). Across 4 simultaneous tests that is not significant after Bonferroni (threshold 0.0125) and is
+  consistent with short-chain tuning, but it is a flag, not a clean pass. Reproduced exactly on re-run
+  (`audit/outputs/sbc-synthetic/`).
 - **Learned blend weight** (`blend_weight_fit.py`): 5-fold CV of the log-opinion-pool model/market weight on
   ~1,600 held-out league matches → **w = 0.00 ± 0.00** (zero variance across folds); fused == market (RPS
-  0.191) ≫ model (0.203). Confirms the market strictly dominates at match level. The report's hand-set 0.35 is
+  0.191) ≫ model (0.203). Confirms the market strictly dominates at match level. The forecast's hand-set 0.25 (`CONFIG.model_weight`; was 0.35) is
   therefore a **deliberate editorial** weight (keep the model's voice + surface stage probs the market never
   quotes), now made explicit and anchored to the learned value rather than asserted.
 
@@ -45,7 +49,7 @@ This project's most valuable output is not the forecast; it's a record of which 
 ## What passed
 | Factor | Test | Verdict |
 |---|---|---|
-| **Hierarchical Bayesian rating** (partial-pooling Poisson, PyMC) | WC2022 backtest vs MLE | **BETTER** — RPS 0.208 vs 0.224 (−0.016); clean sampling (0 divergences); synthetic recovery corr 0.99 vs 0.85. *The first modeling change to improve the forecast.* (One tournament — thin but positive.) Use `predict --bayesian`. |
+| **Hierarchical Bayesian rating** (partial-pooling Poisson, PyMC) | WC2022 backtest vs MLE | **BETTER** — RPS 0.208 vs 0.224 (−0.016) against this script's MLE (`since=2014, min_team_matches=20`); against the backtest's MLE configuration (`since=2006, min 15`, RPS 0.2145 on the same 64 matches) the gain is **≈0.007**. Reproduced in `audit/` (max R-hat 1.014); clean sampling (0 divergences); synthetic recovery corr 0.99 vs 0.85. *The first modeling change to improve the forecast.* (One tournament — thin but positive.) Use `predict --bayesian`. |
 | xG as a leading indicator | prior xG-diff vs goal-diff → future result | **xG better** (corr 0.214 vs 0.144) |
 | **Penalty-shootout skill (psi)** — learned, leakage-free | temporal backtest on 628 shootouts (`shootout_ablation.py`) | **weak but real** — log-loss 0.6888 vs coin-flip 0.6931 (−0.0043); learned scale **+0.236**, replacing the hand-set 0.4. Penalties are *mostly* a coin flip; the one strong predictor (shoot-first ~60%) is set by a coin toss → unusable in forecasts. Knockout extra time is now sampled from the DC grid (keeps the low-score correlation) instead of independent Poissons. |
 | xG as a form covariate *on top of the rating* | ablation | **neutral** — the rating already has it; xG's value needs a full xG-based *rating*, not a bolt-on |

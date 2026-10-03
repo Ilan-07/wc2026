@@ -1,10 +1,18 @@
 """Reproducible data acquisition (gap #28) — every source the system needs, in one place.
 
-    python fetch_data.py            # fetch everything (skips files already present)
-    python fetch_data.py --force    # re-download all
+    PYTHONPATH=src python fetch_data.py            # fetch everything (skips files already present)
+    PYTHONPATH=src python fetch_data.py --force    # re-download all
 
-Run once after cloning. Live odds need an Odds API key (see wc2026.collective.odds_api); skipped
-here if absent. Respects each source's public/open access — no scraping of ToS-restricted sites.
+Run once after cloning. Two kinds of data land:
+
+* ``data/snapshots/`` — the **pinned, sha256-verified evaluation snapshot** (results/shootouts at a
+  fixed upstream commit + the club-odds seasons). Every validation number in README/FINDINGS is
+  computed on this; the download fails loudly if a byte differs. See ``wc2026.data.snapshot``.
+* ``data/raw/`` — the **live** feeds (results ``master``, squads, knockout structure) that the forecast
+  refreshes; these move by design.
+
+Live odds need an Odds API key (see wc2026.collective.odds_api); skipped here if absent. Respects each
+source's public/open access — no scraping of ToS-restricted sites.
 """
 
 from __future__ import annotations
@@ -15,7 +23,6 @@ import urllib.parse
 from pathlib import Path
 
 RAW = Path("data/raw")
-ODDS = RAW / "odds"
 
 GH = "https://raw.githubusercontent.com"
 WIKI = "https://en.wikipedia.org/w/api.php"
@@ -33,9 +40,6 @@ WIKI_PAGES = {
     "wc2022_squads.json": "2022 FIFA World Cup squads",
     "wc2026_knockout.json": "2026 FIFA World Cup knockout stage",
 }
-# football-data.co.uk club odds (5 leagues x 3 seasons) for fusion validation
-LEAGUES = ["E0", "D1", "SP1", "I1", "F1"]
-SEASONS = ["2122", "2223", "2324"]
 
 
 def fetch(dest: Path, url: str, force: bool) -> None:
@@ -57,10 +61,9 @@ def main(force: bool = False) -> None:
         url = (f"{WIKI}?action=query&format=json&prop=revisions&rvprop=content"
                f"&rvslots=main&titles={q}&redirects=1")
         fetch(RAW / fname, url, force)
-    print("Club odds (football-data.co.uk):")
-    for lg in LEAGUES:
-        for sea in SEASONS:
-            fetch(ODDS / f"{lg}_{sea}.csv", f"https://www.football-data.co.uk/mmz4281/{sea}/{lg}.csv", force)
+    print("Pinned evaluation snapshot (results @ fixed commit + club odds, sha256-verified):")
+    from wc2026.data.snapshot import fetch_snapshot
+    fetch_snapshot(force)
     print("\nDone. Live outright odds: run `python cli.py odds` with an Odds API key set.")
 
 

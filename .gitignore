@@ -12,6 +12,8 @@ data/raw/**/*.csv
 data/raw/**/*.json
 data/raw/**/*.wiki
 data/processed/
+# pinned evaluation snapshot (re-fetched + sha256-verified by fetch_data.py)
+data/snapshots/
 
 # python
 __pycache__/

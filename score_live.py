@@ -1,11 +1,16 @@
 """Live tournament track record — grade the model against WC2026 results as they're played.
 
-Leakage-free by construction: it grades the **production** match model (the same rating the
+Data-cutoff, not a stored forecast: it grades the **production** match model (the same rating the
 dashboard ships — Bayesian Poisson + xG blend + goals recalibration, via ``predict.build_match_model``
 so it can't drift from the forecast), **frozen on data before kickoff**, with host advantage and
 altitude applied per fixture exactly like the live simulator. Each WC2026 match is then scored as it
 happens (proper W/D/L Ranked Probability Score vs a uniform baseline). Populates from June 11; before
 then it honestly reports that scoring hasn't started.
+
+Caveat: "frozen" means the *training data* stops at kickoff. Each run refits with the code as it is now,
+and no per-match prediction was stored before its match. The graded model (host advantage + altitude)
+and the headline metric (decisive-match accuracy) were both changed on 2026-06-17, after early results
+were seen, so this is a cutoff-based retrospective rather than a pre-registered test (audit/AUDIT.md §3).
 
 Hit-rate is reported as **decisive-match accuracy** (draws excluded — a draw is almost never the
 single most-likely outcome, so it is structurally unpickable; see ``wc2026.evaluate.pick``).

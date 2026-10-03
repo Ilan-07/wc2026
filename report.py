@@ -22,6 +22,7 @@ from pathlib import Path
 import numpy as np
 
 from wc2026.collective import market, sentiment
+from wc2026.config import CONFIG
 from wc2026.data import loaders
 from wc2026.fusion.pool import pool_two
 from wc2026.model.match_model import MatchModel
@@ -30,7 +31,7 @@ from wc2026.ratings.elo import EloModel
 from wc2026.reports.dashboard import ForecastRow, build_dashboard
 from wc2026.simulate.tournament import TournamentSimulator
 
-MODEL_WEIGHT = 0.35  # title-odds blend: 35% model / 65% market (market is the stronger benchmark)
+MODEL_WEIGHT = CONFIG.model_weight  # title-odds blend (editorial; same value as predict.py)
 NEWS_TEAMS = 8       # fetch live headlines for the top-N blended teams
 
 

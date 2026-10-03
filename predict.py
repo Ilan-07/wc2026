@@ -23,6 +23,7 @@ from pathlib import Path
 import numpy as np
 
 from wc2026.collective import market, sentiment
+from wc2026.config import CONFIG
 from wc2026.data import loaders
 from wc2026.fusion.pool import pool_two
 from wc2026.model.match_model import MatchModel
@@ -41,8 +42,8 @@ PRETOURNEY_QUALIFY = Path("data/processed/pretournament_group_qualify.json")  # 
 # WC match-odds set), but international markets are softer than top-5 club books and the international
 # model has demonstrated *some* skill vs results (xG blend +0.0058, Bayesian +0.016 RPS). So a small
 # positive weight is defensible; 0.35 was optimistic. 0.25 leans hard on the market (the better
-# forecaster) while keeping a modest, evidence-backed model voice.
-MODEL_WEIGHT = 0.25
+# forecaster) while keeping a modest model voice. This is an editorial choice, not a fitted value.
+MODEL_WEIGHT = CONFIG.model_weight  # 0.25 — single source of truth in wc2026.config
 NEWS_TEAMS = 14      # teams to pull live headlines for (top by blended odds)
 
 
