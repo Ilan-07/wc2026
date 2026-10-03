@@ -10,17 +10,19 @@ are not CI-gated. SBC and Bayesian-vs-MLE were re-run for the audit in `audit/` 
 ## The spine works
 - Dixon-Coles correlated-Poisson + Monte Carlo over the real draw.
 - Real out-of-sample skill: **WC2018 RPS 0.214, WC2022 RPS 0.215** vs ~0.24 uniform baseline (`score_backtest.py`).
-- Well-calibrated at match level (ECE 0.031 over the 399 backtest matches, `cli.py probe`). Recency half-life tuned to **1100 days** (`tune_halflife.py`).
+- Well-calibrated at match level (ECE ≈0.03, 0.030–0.032 by platform, over the 399 backtest matches, `cli.py probe`). Recency half-life tuned to **1100 days** (`tune_halflife.py`).
 
 ## Validation depth (widening the evidence beyond two World Cups)
 - **9-tournament backtest** (`tournament_backtest.py`): out-of-sample W/D/L RPS **0.195 vs uniform 0.234,
-  skill +0.0392** pooled over WC2018/22 + Euro 2016/20/24 + Copa 2016/19/21/24 (399 matches). Positive on
+  skill +0.039** (0.0391–0.0392 by platform) pooled over WC2018/22 + Euro 2016/20/24 + Copa 2016/19/21/24 (399 matches). Positive on
   **8 of 9** tournaments; the lone miss is the famously chaotic **Euro 2016** (−0.002). Per-tournament RPS
   0.188 ± 0.029 — the spread is the honest measure of how far a single-WC number can move.
 - **Stage reliability** (`stage_reliability.py`): full group+bracket sim vs actual deep runs, pooled over the
-  four 32-team World Cups 2010–2022. Pooled **Brier 0.104, ECE 0.020**; per-stage ECE shrinks with depth
-  (qualify 0.072 → champion 0.018). The deep-run probabilities the headline sells (reach SF/final/title) are
-  calibrated, not just the match probabilities. (Mean-pred == base-rate is a mechanical slot-count identity;
+  four 32-team World Cups 2010–2022. Pooled **Brier 0.104, ECE ≈0.02** (0.017–0.020 by platform). Per-stage ECE is
+  largest at "qualify" (≈0.07) and smallest at "champion" (≈0.018), but the middle stages are **not**
+  monotone and swing with the platform (semi-final 0.014–0.039), so no "shrinks with depth" trend should be
+  read into them. On this pooled measure the deep-run probabilities look reasonably calibrated, with 4
+  tournaments and 640 non-independent team-stage cases behind it. (Mean-pred == base-rate is a mechanical slot-count identity;
   ECE is the real signal.)
 - **Simulation-based calibration** (`sbc_validate.py`): SBC (Talts et al.) on the hierarchical-Bayesian
   sampler — 128 prior→data→posterior replicates, rank-uniformity per parameter. mu0 / sigma_att / att_0

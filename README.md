@@ -41,11 +41,17 @@ which fails if a number moves.
 | Claim | Result | Model evaluated | Command | Gate |
 |---|---|---|---|---|
 | **9-tournament W/D/L backtest** (WC 2018/22, Euro 2016/20/24, Copa 2016/19/21/24; 399 matches) | **RPS 0.195 vs 0.234 uniform → skill +0.039**; positive on **8 of 9** (Euro 2016 −0.002) | Elo-seeded Dixon-Coles MLE | `cli.py backtest` | CI |
-| **Match-level calibration** (same 399 matches, 10-bin multiclass ECE) | **ECE 0.031** | Elo-seeded Dixon-Coles MLE | `cli.py probe` | CI |
-| **Deep-run stage reliability** (reach R16 / QF / SF / final / title; World Cups 2010–22) | Pooled **Brier 0.104, ECE 0.020** | Elo-seeded Dixon-Coles MLE + simulator | `cli.py stage-reliability` | CI |
+| **Match-level calibration** (same 399 matches, 10-bin multiclass ECE) | **ECE ≈0.03** (0.030–0.032 by platform) | Elo-seeded Dixon-Coles MLE | `cli.py probe` | CI |
+| **Deep-run stage reliability** (reach R16 / QF / SF / final / title; World Cups 2010–22) | Pooled **Brier 0.104, ECE ≈0.02** (0.017–0.020 by platform) | Elo-seeded Dixon-Coles MLE + simulator | `cli.py stage-reliability` | CI |
 | **Model vs market** (787 held-out top-5 club-league matches, chronological split, mostly 2023/24) | Market wins: **RPS 0.190 vs 0.204**; CV-fitted model weight **0.00** | Dixon-Coles MLE vs de-vigged odds | `cli.py validate`, `cli.py blend-weight` | CI |
 | **Hierarchical Bayesian vs MLE** (WC2022, 64 matches) | Bayesian **0.208** vs the script's MLE 0.224. Against the backtest's (stronger) MLE configuration, which scores 0.2145 on the same matches, the gain is **≈0.007**. **One tournament only.** | Bayesian Poisson (PyMC) | `bayesian_ablation.py` (~20 s) | rerun in `audit/` |
 | **Simulation-based calibration** of the Bayesian sampler (Talts et al., 128 replicates) | mu0 / sigma_att / att_0 pass (p = 0.95 / 0.17 / 0.64); **home flagged (p = 0.026)**, not significant after Bonferroni for 4 tests | Bayesian sampler | `cli.py sbc` (~3 min, PyMC) | rerun in `audit/` |
+
+**Numbers vary slightly by machine.** The Dixon-Coles fit (L-BFGS-B on a non-convex likelihood)
+stops at slightly different points on different CPU/BLAS builds, and the tournament simulator amplifies
+that. Each machine is deterministic, but macOS and two GitHub Linux runner types differ by up to 1×10⁻⁴ in
+backtest skill and up to 0.003 in stage ECE (`audit/outputs/cross-platform/observed.md`). The CI tolerances
+are set from that measured spread.
 
 **Read this before quoting the table.** The CI-gated rows evaluate the **Elo-seeded Dixon-Coles MLE**
 rating. The live forecast's default rating is the **hierarchical Bayesian** model, plus an xG blend, a

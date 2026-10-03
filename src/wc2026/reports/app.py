@@ -327,8 +327,8 @@ footer{padding:34px 0 70px;color:var(--mut);font-size:12px;max-width:74ch}
    <p class="note" style="margin:0">
     <b>Historical validation</b> (of the Dixon-Coles MLE rating, not the Bayesian default shown above).
     9-tournament out-of-sample W/D/L <b>RPS 0.195 vs 0.234 uniform</b> (skill +0.039), positive on
-    <b>8 of 9</b> tournaments (399 matches); match-level ECE 0.031. Deep-run stage reliability <b>Brier 0.104,
-    ECE 0.020</b> across four World Cups. On club odds the betting market beats the model (0.190 vs 0.204)
+    <b>8 of 9</b> tournaments (399 matches); match-level ECE ≈0.03. Deep-run stage reliability <b>Brier 0.104,
+    ECE ≈0.02</b> across four World Cups. On club odds the betting market beats the model (0.190 vs 0.204)
     and the fitted model weight is 0; the <b>25% model / 75% market</b> blend is an editorial choice.
     This live record uses a pre-kickoff data cutoff and is recomputed with the current code; it is not a
     stored forecast.
