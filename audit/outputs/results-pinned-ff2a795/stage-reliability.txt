@@ -1,0 +1,15 @@
+Stage reliability pooled over World Cups [2010, 2014, 2018, 2022] (8 groups × full bracket, 20k sims each):
+
+  stage         n    base  mean_pred    Brier     ECE
+  qualify     128   0.500      0.500   0.1974   0.072
+  qf          128   0.250      0.250   0.1451   0.034
+  sf          128   0.125      0.125   0.0966   0.039
+  final       128   0.062      0.062   0.0538   0.032
+  champion    128   0.031      0.031   0.0292   0.018
+
+  pooled (all stages): n=640  Brier 0.1044  ECE 0.020
+
+Note: mean_pred == base_rate is mechanical (reach-probs sum to the slot count), so the
+real signal is ECE — whether high-confidence picks actually advance more often. Low ECE
+(≈0.02-0.07, shrinking with depth) ⇒ well-calibrated deep-run probabilities. Still thin at
+the champion end (only a few tournaments; gap #35 is inherent).

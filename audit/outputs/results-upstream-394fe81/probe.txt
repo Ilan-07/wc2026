@@ -1,0 +1,21 @@
+TOP-PICK CONFIDENCE CALIBRATION (conf_gap +ve = overconfident):
+
+  overall            n=399  conf 0.518  hit 0.536  gap -0.018  ECE 0.028
+  by confidence tier:
+    toss-up [.33,.45)  n=142  conf 0.396  hit 0.415  gap -0.019
+    lean [.45,.60)     n=153  conf 0.520  hit 0.536  gap -0.016
+    strong [.60,1]     n=104  conf 0.681  hit 0.702  gap -0.021
+  by predicted class:
+    home               n=242  conf 0.533  hit 0.541  gap -0.008
+    draw               n=  7  conf 0.365  hit 0.286  gap +0.079
+    away               n=150  conf 0.501  hit 0.540  gap -0.039
+
+EXPECTED vs ACTUAL TOTAL GOALS (bias +ve = model over-predicts):
+
+  overall: pred 2.32  act 2.49  bias -0.17  (n=399)
+    pred-total [0.0,2.3)    n=208  pred 2.06  act 2.37  bias -0.31
+    pred-total [2.3,2.8)    n=156  pred 2.53  act 2.54  bias -0.02
+    pred-total [2.8,3.3)    n= 35  pred 2.97  act 2.97  bias -0.00
+
+Largest |conf_gap| / |bias| slices are where to spend modelling effort (these are the numbers the market doesn't quote).
+PYTHONPATH=src python cli.py probe  75.24s user 1.37s system 97% cpu 1:18.82 total
