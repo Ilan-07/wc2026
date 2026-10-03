@@ -1,0 +1,131 @@
+# Linux measurement at fabecd4 itself — GitHub Actions run 37105232750, attempts 1–3
+# Harness: branch audit-linux/fabecd4 @ 6f54e0616a30c1eea8507abbed045a97660d63b5 (one workflow file; checks out fabecd4, verifies SHA + clean tree)
+# Data: pinned results/shootouts @ ff2a795 + 15 club-odds files, all sha256-verified (sha256sum -c: OK)
+
+RUN 37105232750
+=== attempt 1: success
+AUDIT backtest |   Copa América 2016     32   0.1880   0.2465   +0.0585
+AUDIT backtest |   Copa América 2019     26   0.1509   0.2201   +0.0692
+AUDIT backtest |   Copa América 2021     28   0.1563   0.2242   +0.0679
+AUDIT backtest |   Copa América 2024     32   0.1602   0.2309   +0.0707
+AUDIT backtest |   Euro 2016             51   0.2336   0.2320   -0.0016
+AUDIT backtest |   Euro 2020             51   0.1862   0.2386   +0.0524
+AUDIT backtest |   Euro 2024             51   0.1876   0.2222   +0.0346
+AUDIT backtest |   per-tournament RPS : 0.1880 ± 0.0288 (mean ± sd across tournaments)
+AUDIT backtest |   pooled log-loss    : 0.9794
+AUDIT backtest |   pooled RPS         : 0.1951
+AUDIT backtest |   pooled uniform RPS : 0.2343
+AUDIT backtest |   skill vs uniform   : +0.0392  (pooled over matches)
+AUDIT backtest |   tournament             n       RPS  uniform   skill
+AUDIT backtest |   World Cup 2018        64   0.2143   0.2439   +0.0296
+AUDIT backtest |   World Cup 2022        64   0.2145   0.2387   +0.0242
+AUDIT backtest | Out-of-sample W/D/L RPS across 9 tournaments (399 matches):
+AUDIT backtest | The per-tournament spread is the honest measure of how much a single-WC number can move.
+AUDIT CPU=AMD EPYC 7763 64-Core Processor
+AUDIT HEAD=fabecd4736461a216d974fff8cc8266e6b50f9f9
+AUDIT probe |   overall            n=399  conf 0.519  hit 0.539  gap -0.020  ECE 0.031
+AUDIT stage |   champion    128   0.031      0.031   0.0291   0.018
+AUDIT stage |   final       128   0.062      0.062   0.0536   0.032
+AUDIT stage |   pooled (all stages): n=640  Brier 0.1043  ECE 0.019
+AUDIT stage |   qf          128   0.250      0.250   0.1455   0.036
+AUDIT stage |   qualify     128   0.500      0.500   0.1970   0.072
+AUDIT stage |   sf          128   0.125      0.125   0.0964   0.024
+AUDIT stage |   stage         n    base  mean_pred    Brier     ECE
+AUDIT stage | (≈0.02-0.07, shrinking with depth) ⇒ well-calibrated deep-run probabilities. Still thin at
+AUDIT stage | Note: mean_pred == base_rate is mechanical (reach-probs sum to the slot count), so the
+AUDIT stage | real signal is ECE — whether high-confidence picks actually advance more often. Low ECE
+AUDIT stage | Stage reliability pooled over World Cups [2010, 2014, 2018, 2022] (8 groups × full bracket, 20k sims each):
+AUDIT stage | the champion end (only a few tournaments; gap #35 is inherent).
+AUDIT validate |   fused  RPS : 0.1897   (learned model weight = 0.00)
+AUDIT validate |   market RPS : 0.1897   (benchmark)
+AUDIT validate |   model  RPS : 0.2043
+AUDIT validate | Held-out evaluation on 787 matches (lower RPS is better):
+numpy==2.4.2
+numpy==2.4.2 scipy==1.17.0 pandas==2.3.3
+pandas==2.3.3
+pandas==2.3.3)
+scipy==1.17.0
+=== attempt 2: success
+AUDIT backtest |   Copa América 2016     32   0.1880   0.2465   +0.0585
+AUDIT backtest |   Copa América 2019     26   0.1509   0.2201   +0.0692
+AUDIT backtest |   Copa América 2021     28   0.1563   0.2242   +0.0679
+AUDIT backtest |   Copa América 2024     32   0.1602   0.2309   +0.0707
+AUDIT backtest |   Euro 2016             51   0.2336   0.2320   -0.0016
+AUDIT backtest |   Euro 2020             51   0.1862   0.2386   +0.0524
+AUDIT backtest |   Euro 2024             51   0.1876   0.2222   +0.0346
+AUDIT backtest |   per-tournament RPS : 0.1880 ± 0.0288 (mean ± sd across tournaments)
+AUDIT backtest |   pooled log-loss    : 0.9794
+AUDIT backtest |   pooled RPS         : 0.1951
+AUDIT backtest |   pooled uniform RPS : 0.2343
+AUDIT backtest |   skill vs uniform   : +0.0392  (pooled over matches)
+AUDIT backtest |   tournament             n       RPS  uniform   skill
+AUDIT backtest |   World Cup 2018        64   0.2143   0.2439   +0.0296
+AUDIT backtest |   World Cup 2022        64   0.2145   0.2387   +0.0242
+AUDIT backtest | Out-of-sample W/D/L RPS across 9 tournaments (399 matches):
+AUDIT backtest | The per-tournament spread is the honest measure of how much a single-WC number can move.
+AUDIT CPU=AMD EPYC 7763 64-Core Processor
+AUDIT HEAD=fabecd4736461a216d974fff8cc8266e6b50f9f9
+AUDIT probe |   overall            n=399  conf 0.519  hit 0.539  gap -0.020  ECE 0.031
+AUDIT stage |   champion    128   0.031      0.031   0.0291   0.018
+AUDIT stage |   final       128   0.062      0.062   0.0536   0.032
+AUDIT stage |   pooled (all stages): n=640  Brier 0.1043  ECE 0.019
+AUDIT stage |   qf          128   0.250      0.250   0.1455   0.036
+AUDIT stage |   qualify     128   0.500      0.500   0.1970   0.072
+AUDIT stage |   sf          128   0.125      0.125   0.0964   0.024
+AUDIT stage |   stage         n    base  mean_pred    Brier     ECE
+AUDIT stage | (≈0.02-0.07, shrinking with depth) ⇒ well-calibrated deep-run probabilities. Still thin at
+AUDIT stage | Note: mean_pred == base_rate is mechanical (reach-probs sum to the slot count), so the
+AUDIT stage | real signal is ECE — whether high-confidence picks actually advance more often. Low ECE
+AUDIT stage | Stage reliability pooled over World Cups [2010, 2014, 2018, 2022] (8 groups × full bracket, 20k sims each):
+AUDIT stage | the champion end (only a few tournaments; gap #35 is inherent).
+AUDIT validate |   fused  RPS : 0.1897   (learned model weight = 0.00)
+AUDIT validate |   market RPS : 0.1897   (benchmark)
+AUDIT validate |   model  RPS : 0.2043
+AUDIT validate | Held-out evaluation on 787 matches (lower RPS is better):
+numpy==2.4.2
+numpy==2.4.2 scipy==1.17.0 pandas==2.3.3
+pandas==2.3.3
+pandas==2.3.3)
+scipy==1.17.0
+=== attempt 3: success
+AUDIT backtest |   Copa América 2016     32   0.1880   0.2465   +0.0585
+AUDIT backtest |   Copa América 2019     26   0.1509   0.2201   +0.0692
+AUDIT backtest |   Copa América 2021     28   0.1563   0.2242   +0.0679
+AUDIT backtest |   Copa América 2024     32   0.1602   0.2309   +0.0707
+AUDIT backtest |   Euro 2016             51   0.2336   0.2320   -0.0016
+AUDIT backtest |   Euro 2020             51   0.1862   0.2386   +0.0524
+AUDIT backtest |   Euro 2024             51   0.1876   0.2222   +0.0346
+AUDIT backtest |   per-tournament RPS : 0.1880 ± 0.0288 (mean ± sd across tournaments)
+AUDIT backtest |   pooled log-loss    : 0.9794
+AUDIT backtest |   pooled RPS         : 0.1951
+AUDIT backtest |   pooled uniform RPS : 0.2343
+AUDIT backtest |   skill vs uniform   : +0.0392  (pooled over matches)
+AUDIT backtest |   tournament             n       RPS  uniform   skill
+AUDIT backtest |   World Cup 2018        64   0.2143   0.2439   +0.0296
+AUDIT backtest |   World Cup 2022        64   0.2145   0.2387   +0.0242
+AUDIT backtest | Out-of-sample W/D/L RPS across 9 tournaments (399 matches):
+AUDIT backtest | The per-tournament spread is the honest measure of how much a single-WC number can move.
+AUDIT CPU=AMD EPYC 7763 64-Core Processor
+AUDIT HEAD=fabecd4736461a216d974fff8cc8266e6b50f9f9
+AUDIT probe |   overall            n=399  conf 0.519  hit 0.539  gap -0.020  ECE 0.031
+AUDIT stage |   champion    128   0.031      0.031   0.0291   0.018
+AUDIT stage |   final       128   0.062      0.062   0.0536   0.032
+AUDIT stage |   pooled (all stages): n=640  Brier 0.1043  ECE 0.019
+AUDIT stage |   qf          128   0.250      0.250   0.1455   0.036
+AUDIT stage |   qualify     128   0.500      0.500   0.1970   0.072
+AUDIT stage |   sf          128   0.125      0.125   0.0964   0.024
+AUDIT stage |   stage         n    base  mean_pred    Brier     ECE
+AUDIT stage | (≈0.02-0.07, shrinking with depth) ⇒ well-calibrated deep-run probabilities. Still thin at
+AUDIT stage | Note: mean_pred == base_rate is mechanical (reach-probs sum to the slot count), so the
+AUDIT stage | real signal is ECE — whether high-confidence picks actually advance more often. Low ECE
+AUDIT stage | Stage reliability pooled over World Cups [2010, 2014, 2018, 2022] (8 groups × full bracket, 20k sims each):
+AUDIT stage | the champion end (only a few tournaments; gap #35 is inherent).
+AUDIT validate |   fused  RPS : 0.1897   (learned model weight = 0.00)
+AUDIT validate |   market RPS : 0.1897   (benchmark)
+AUDIT validate |   model  RPS : 0.2043
+AUDIT validate | Held-out evaluation on 787 matches (lower RPS is better):
+numpy==2.4.2
+numpy==2.4.2 scipy==1.17.0 pandas==2.3.3
+pandas==2.3.3
+pandas==2.3.3)
+scipy==1.17.0
