@@ -45,4 +45,4 @@ jobs:
       - name: Test
         env:
           WC2026_REQUIRE_SNAPSHOT: "1"
-        run: PYTHONPATH=src python -m pytest -q
+        run: PYTHONPATH=src python -m pytest -q -rP  # -rP: print the observed headline numbers
