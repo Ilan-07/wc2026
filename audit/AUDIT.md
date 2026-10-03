@@ -115,8 +115,30 @@ this distinction. The evidence that the Bayesian rating beats the MLE comes from
 |---|---|---|---|
 | Hierarchical Bayesian beats MLE on WC2022: **RPS 0.208 vs 0.224 (−0.016)**, 0 divergences | `bayesian_ablation.py` (16 s) | Bayesian **0.2078**, MLE **0.2241**, 64 matches; 0 divergences, max R-hat **1.014** (PyMC warns > 1.01) | **Reproduced, but the size of the gain is overstated.** The script's MLE baseline uses `since=2014, min_team_matches=20`. The 9-tournament backtest's MLE (`since=2006, min_team_matches=15`) scores **0.2145** on the same 64 WC2022 matches. Against that stronger MLE, the Bayesian gain is **≈0.007, not 0.016**. It rests on one tournament in either case. The script's "minnow shrinkage" printout also shows the Bayesian ratings *less* shrunk than the MLE for all 7 minnows listed, the opposite of its stated expectation. These are non-WC teams and do not affect the RPS. |
 
-Raw logs are in `audit/outputs/results-pinned-ff2a795/`, `results-upstream-394fe81/`, `club-odds-fetched-2026-10-03/`, `sbc-synthetic/` and `bayesian-vs-mle/`.
+Raw logs are in `audit/outputs/results-pinned-ff2a795/`, `results-upstream-394fe81/`, `club-odds-fetched-2026-10-03/`, `sbc-synthetic/`, `bayesian-vs-mle/` and `cross-platform/`.
 The pinned SHA-256 hashes are `results.csv` 27d2d19b…7d9992 and `shootouts.csv` cd66ba9c…acc9de. The SHA-256 over the 15 odds-file hashes is 0a2648c1…ecedb1.
+
+**Cross-platform variation (found after first publishing this audit, when CI first ran on Linux).**
+The "Reproduced" verdicts above hold on macOS, where the numbers are identical run to run. On GitHub's
+Linux runners the same code and pinned data give slightly different values, which are themselves
+deterministic per runner type (`audit/outputs/cross-platform/observed.md`):
+
+- 9-tournament skill **+0.0391–0.0392**
+- match ECE **0.030–0.032**
+- stage Brier **0.1040–0.1044**
+- pooled stage ECE **0.017–0.020**
+- per-stage ECE for the semi-final ranges **0.014–0.039**
+
+The cause is the Dixon-Coles fit: `minimize(..., method="L-BFGS-B")` with a finite-difference gradient and
+default stopping tolerances, on a non-convex likelihood. It stops at slightly different points across
+floating-point builds. The stage simulator then amplifies the difference, because knockout sampling uses
+1–3 random draws per game, so one flipped result desynchronises the rest of the seeded RNG stream.
+
+Consequences:
+- At the README's printed precision, RPS 0.195, skill +0.039 and Brier 0.104 hold everywhere.
+- "Stage ECE 0.020", "match ECE ~0.03" and FINDINGS' "+0.0392" are macOS values.
+- FINDINGS' "per-stage ECE shrinks with depth" is not stable across platforms. It is not monotone even on macOS
+  (qualify 0.072, QF 0.034, SF 0.039, final 0.032, champion 0.018).
 
 ## 5. Under-tested fragility: the evidence base is a mutable upstream file
 
