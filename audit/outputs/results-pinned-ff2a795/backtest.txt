@@ -1,0 +1,20 @@
+Out-of-sample W/D/L RPS across 9 tournaments (399 matches):
+
+  tournament             n       RPS  uniform   skill
+  World Cup 2018        64   0.2143   0.2439   +0.0296
+  World Cup 2022        64   0.2145   0.2387   +0.0242
+  Euro 2016             51   0.2336   0.2320   -0.0016
+  Euro 2020             51   0.1862   0.2386   +0.0524
+  Euro 2024             51   0.1876   0.2222   +0.0346
+  Copa América 2016     32   0.1881   0.2465   +0.0584
+  Copa América 2019     26   0.1512   0.2201   +0.0689
+  Copa América 2021     28   0.1558   0.2242   +0.0684
+  Copa América 2024     32   0.1602   0.2309   +0.0707
+
+  pooled RPS         : 0.1951
+  pooled uniform RPS : 0.2343
+  skill vs uniform   : +0.0392  (pooled over matches)
+  per-tournament RPS : 0.1879 ± 0.0288 (mean ± sd across tournaments)
+  pooled log-loss    : 0.9794
+
+The per-tournament spread is the honest measure of how much a single-WC number can move.

@@ -1,0 +1,16 @@
+Loading league odds + fitting Dixon-Coles per league...
+  Premier League  train  763  test  303
+  Bundesliga      train  615  test  237
+  La Liga         train  763  test  339
+  Serie A         train  763  test  376
+  Ligue 1         train  714  test  318
+
+Held-out evaluation on 787 matches (lower RPS is better):
+  model  RPS : 0.2043
+  market RPS : 0.1897   (benchmark)
+  fused  RPS : 0.1897   (learned model weight = 0.00)
+
+Largest model/market disagreement (home result):
+  model P(H/D/A) = [0.78 0.14 0.08]  market = [0.42 0.24 0.34]
+  -> model higher on home (-36%), crowd higher on away (+26%)
+PYTHONPATH=src python cli.py validate  1.86s user 0.14s system 83% cpu 2.392 total

@@ -1,0 +1,21 @@
+Loading league odds + fitting Dixon-Coles per league...
+  Premier League  train  763  test  303
+  Bundesliga      train  615  test  237
+  La Liga         train  763  test  339
+  Serie A         train  763  test  376
+  Ligue 1         train  714  test  318
+
+5-fold CV blend weight on 1573 held-out matches (weight on the model; 1−w on the market):
+
+  by RPS     : w = 0.000 ± 0.000   folds [0.0, 0.0, 0.0, 0.0, 0.0]
+            fused 0.1906  vs market 0.1906  vs model 0.2026
+  by log-loss: w = 0.000 ± 0.000   folds [0.0, 0.0, 0.0, 0.0, 0.0]
+            fused 0.9641  vs market 0.9641  vs model 1.0008
+
+Learned (RPS-optimal) model weight ≈ 0.00; the report ships 0.35.
+Reconciliation: on liquid markets the RPS-optimal model weight is small — the de-vigged
+market already dominates (the project's documented 'can't beat the market' finding). The
+report's 0.35 is a deliberate editorial choice to keep the model's voice
+audible and to surface the stage probabilities the market never quotes — NOT an RPS-optimal
+number. This script makes that trade-off explicit and gives the evidence-based anchor (~0.00).
+PYTHONPATH=src python cli.py blend-weight  1.93s user 0.08s system 99% cpu 2.019 total
