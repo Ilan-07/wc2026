@@ -3,8 +3,11 @@
 # Bounded: ~5 min on a laptop (+~3 min optional SBC), no API keys. Run from an empty directory.
 set -euo pipefail
 
+REF=fabecd4736461a216d974fff8cc8266e6b50f9f9   # the immutable reference — never the moving main branch
 git clone https://github.com/Ilan-07/wc2026 && cd wc2026
-git checkout fabecd4736461a216d974fff8cc8266e6b50f9f9
+git -c advice.detachedHead=false checkout --detach "$REF"
+test "$(git rev-parse HEAD)" = "$REF" || { echo "not at $REF — refusing to run"; exit 1; }
+test -z "$(git status --porcelain)"   || { echo "tree differs from $REF — refusing to run"; exit 1; }
 
 python3.12 -m venv .venv && . .venv/bin/activate          # any Python >= 3.11 works with the lock
 pip install numpy==2.4.2 scipy==1.17.0 pandas==2.3.3        # subset of requirements-lock.txt
