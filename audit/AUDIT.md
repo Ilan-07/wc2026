@@ -163,5 +163,7 @@ Other gaps noted but not pursued: README says "123 tests", the CI comment says 1
 
 ## 6. Audit artifact SHA
 
-The commit on branch `audit/fabecd4` (parent `fabecd4`) that adds `audit/`. Its SHA is reported with
-the submission. A file cannot contain its own commit hash.
+The head of branch `audit/fabecd4`, which descends from `fabecd4` and touches only `audit/`
+(`git diff --stat fabecd4 <sha>` lists nothing outside `audit/`). Its SHA is reported with the submission,
+because a file cannot contain its own commit hash. History: the first commit adds the audit; later commits
+add findings made after it was first written (cross-platform variation), each with its own message.
